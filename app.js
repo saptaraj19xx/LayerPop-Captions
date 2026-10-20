@@ -2,6 +2,7 @@
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
   var words = [], selectedPreset = "punchline", chosenMogrt = "", generationTimer = null, generationValue = 0;
+  var selectedProvider = localStorage.getItem("layerpop-provider") || "local";
   var presets = [
     {id:"punchline",name:"Punchline Pop",desc:"Lime power words",accent:"#c7ff45",treatment:"outline"},
     {id:"beast",name:"Beast Energy",desc:"Red, heavy and loud",accent:"#ff414d",treatment:"outline"},
@@ -40,121 +41,214 @@
     {id:"lavender",name:"Lavender Dream",desc:"Soft lavender accent",accent:"#d8b4fe",treatment:"glow"},
     {id:"gold",name:"Gold Standard",desc:"Premium gold emphasis",accent:"#fbbf24",treatment:"outline"}
   ];
+
   function toast(message) { var el = $("toast"); el.textContent = message; el.classList.add("show"); window.setTimeout(function(){el.classList.remove("show");}, 2600); }
   function esc(value) { return String(value).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
   function clamp(n,min,max){return Math.max(min,Math.min(max,n));}
+  function setProviderFromSelection(provider){
+    selectedProvider = provider || "local";
+    try { localStorage.setItem("layerpop-provider", selectedProvider); } catch (err) { console.warn("Storage unavailable", err); }
+    updateProviderUI();
+  }
+  function maskKey(value){
+    var key = (value || "").trim();
+    if (!key) return "";
+    if (key.length <= 8) return key.slice(0, 2) + "***";
+    return key.slice(0, 3) + "••••••" + key.slice(-3);
+  }
+  function validateGladiaKey(value){
+    var key = (value || "").trim();
+    if (!key) return "Enter your Gladia API key.";
+    if (key.length < 10) return "Gladia API key looks too short.";
+    return "";
+  }
+  function updateProviderUI(){
+    var providerSelect = $("providerSelect");
+    if (providerSelect) providerSelect.value = selectedProvider;
+    var keyRow = $("gladiaKeyRow");
+    var keyInput = $("gladiaKey");
+    if (keyRow) keyRow.style.display = selectedProvider === "gladia" ? "flex" : "none";
+    if (keyInput) {
+      keyInput.title = selectedProvider === "gladia" ? "Gladia API key for cloud transcription" : "Select Gladia Cloud to enable cloud transcription";
+      keyInput.placeholder = selectedProvider === "gladia" ? "Enter Gladia API key" : "Cloud provider selected";
+    }
+    var actionLabel = $("transcribeActionLabel");
+    if (actionLabel) actionLabel.textContent = selectedProvider === "gladia" ? "Transcribe with Gladia" : "Transcribe locally";
+    if (selectedProvider === "gladia") {
+      var status = $("transcriptionStatus");
+      if (status && !status.textContent) status.textContent = "Gladia cloud mode selected.";
+    }
+  }
   function renderPresets() {
     $("presetGrid").innerHTML = presets.map(function(p){
       var sample = p.id === "creatorbox" ? "background:"+p.accent+";color:#111;padding:4px 6px;border-radius:3px;" : "color:#fff;text-shadow:2px 2px #000,-2px 2px #000,0 0 8px "+p.accent+";";
-      return '<button class="preset '+(selectedPreset===p.id?'selected':'')+'" data-preset="'+p.id+'"><div class="preset-sample" style="'+sample+'">WORD <span style="color:'+p.accent+'">POP</span></div><span class="preset-name">'+esc(p.name)+'</span><small>'+esc(p.desc)+'</small></button>';
+      return '<button class="preset '+(selectedPreset===p.id?'selected':'')+'" data-preset="'+p.id+'"><div class="preset-sample" style="'+sample+'">WORD <span style="color:'+p.accent+'">POP</span></div><div class="preset-meta"><strong>'+esc(p.name)+'</strong><span>'+esc(p.desc)+'</span></div></button>';
     }).join("");
     var p = presets.find(function(x){return x.id===selectedPreset;}) || presets[0];
     $("accentColor").value = p.accent;
     updatePreview();
   }
   function updatePreview(){
-    var p=presets.find(function(x){return x.id===selectedPreset;})||presets[0], accent=$("accentColor").value, textColor=$("textColor").value;
-    var sample=words.length ? words[0].text : "THIS IS THE MOMENT", parts=sample.split(/\s+/), split=Math.max(1,Math.floor(parts.length*.6));
-    var first=parts.slice(0,split).join(" "), second=parts.slice(split).join(" ");
-    var el=$("previewText"); el.innerHTML=esc(first)+(second?' <b>'+esc(second)+'</b>':'');
-    el.style.color=textColor;el.style.fontSize=$("fontSize").value+"px";el.style.textShadow=p.treatment==="glow"?"0 0 8px "+accent+",0 3px 4px #000":"2px 2px #000,-2px 2px #000,0 3px 4px #000";
-    var b=el.querySelector("b");if(b)b.style.color=accent;
-    if(p.treatment==="box"){el.style.background=accent;el.style.color="#111";el.style.padding="8px 12px";if(b)b.style.color="#111";}else{el.style.background="transparent";el.style.padding="0";}
-    $("fontSizeOut").textContent=$("fontSize").value+" px";
+    var p = presets.find(function(x){return x.id===selectedPreset;}) || presets[0], accent = $("accentColor").value, textColor = $("textColor").value;
+    var sample = words.length ? words[0].text : "THIS IS THE MOMENT", parts = sample.split(/\s+/), split = Math.max(1,Math.floor(parts.length*.6));
+    var first = parts.slice(0,split).join(" "), second = parts.slice(split).join(" ");
+    var el = $("previewText"); el.innerHTML = esc(first)+(second?' <b>'+esc(second)+'</b>':'');
+    el.style.color = textColor; el.style.fontSize = $("fontSize").value + "px"; el.style.textShadow = p.treatment==="glow" ? "0 0 8px "+accent+",0 3px 4px #000" : "2px 2px #000,-2px 2px #000,0 3px 4px #000";
+    var b = el.querySelector("b"); if (b) b.style.color = accent;
+    if (p.treatment === "box") { el.style.background = accent; el.style.color = "#111"; el.style.padding = "8px 12px"; if (b) b.style.color = "#111"; } else { el.style.background = "transparent"; el.style.padding = "0"; }
+    $("fontSizeOut").textContent = $("fontSize").value + " px";
   }
   function formatTime(seconds, comma) {
-    var ms=Math.max(0,Math.round((Number(seconds)||0)*1000)), h=Math.floor(ms/3600000);ms%=3600000;var m=Math.floor(ms/60000);ms%=60000;var s=Math.floor(ms/1000);ms%=1000;
-    return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0")+(comma?",":".")+String(ms).padStart(3,"0");
+    var ms = Math.max(0, Math.round((Number(seconds) || 0) * 1000)), h = Math.floor(ms / 3600000); ms %= 3600000; var m = Math.floor(ms / 60000); ms %= 60000; var s = Math.floor(ms / 1000); ms %= 1000;
+    return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0") + (comma ? "," : ".") + String(ms).padStart(3, "0");
   }
-  function parseTime(t){var m=String(t).trim().match(/^(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})$/);if(!m)return NaN;return +m[1]*3600 + +m[2]*60 + +m[3] + +(m[4].padEnd(3,"0"))/1000;}
-  function normalize(){words=words.map(function(w,i){var start=Math.max(0,Number(w.start)||0),end=Number(w.end);if(!Number.isFinite(end)||end<=start)end=start+.25;return {text:String(w.text||"").trim(),start:start,end:end};}).filter(function(w){return w.text;}).sort(function(a,b){return a.start-b.start;});}
+  function parseTime(t){
+    var m = String(t).trim().match(/^(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})$/);
+    if (!m) return NaN;
+    return +m[1] * 3600 + +m[2] * 60 + +m[3] + +(m[4].padEnd(3, "0")) / 1000;
+  }
+  function normalize(){
+    words = words.map(function(w, i){
+      var start = Math.max(0, Number(w.start) || 0), end = Number(w.end);
+      if (!Number.isFinite(end) || end <= start) end = start + 0.25;
+      return { text: String(w.text || "").trim() || "word", start: start, end: end };
+    }).filter(function(w){ return w.text; });
+  }
   function renderWords(){
-    normalize();$("wordCount").textContent=words.length+" WORDS";
-    if(!words.length){$("wordRows").innerHTML='<div class="empty">Import an SRT or paste a transcript to start.</div>';$("timeline").innerHTML='<div class="empty">Your timed words will appear here.</div>';updatePreview();return;}
-    $("wordRows").innerHTML=words.map(function(w,i){return '<div class="word-row"><span class="word-index">'+String(i+1).padStart(2,"0")+'</span><input class="word-text" data-word-text="'+i+'" aria-label="Word '+(i+1)+'" value="'+esc(w.text)+'"><input type="number" step="0.01" min="0" data-word-start="'+i+'" aria-label="Start seconds" value="'+w.start.toFixed(2)+'"><input type="number" step="0.01" min="0.01" data-word-end="'+i+'" aria-label="End seconds" value="'+w.end.toFixed(2)+'"><button class="remove-word" data-remove-word="'+i+'" title="Remove word">×</button></div>';}).join("");
-    var maxEnd=Math.max(5,words.reduce(function(m,w){return Math.max(m,w.end);},0));
-    $("timelineRuler").innerHTML=[0,.2,.4,.6,.8,1].map(function(f){return '<span>'+ (maxEnd*f).toFixed(1)+'s</span>';}).join("");
-    $("timeline").innerHTML=words.map(function(w,i){var width=clamp((w.end-w.start)/maxEnd*100,1.3,100);return '<div class="timeline-word" title="'+esc(w.text)+': '+w.start.toFixed(2)+'–'+w.end.toFixed(2)+'s" style="width:'+Math.max(28,width*4.8)+'px;" data-timeline-word="'+i+'">'+esc(w.text)+'</div>';}).join("");
+    normalize(); $("wordCount").textContent = words.length + " WORDS";
+    if (!words.length) { $("wordRows").innerHTML = '<div class="empty">Import an SRT or paste a transcript to start.</div>'; $("timeline").innerHTML = '<div class="empty">Your timed words will appear here.</div>'; $("timelineRuler").innerHTML = '<span>00.0s</span>' ; updatePreview(); return; }
+    $("wordRows").innerHTML = words.map(function(w, i){
+      return '<div class="word-row"><span class="word-index">'+String(i+1).padStart(2,"0")+'</span><input class="word-text" data-word-text="'+i+'" aria-label="Word '+(i+1)+'" value="'+esc(w.text)+'"><input class="time-field" data-word-start="'+i+'" value="'+w.start.toFixed(3)+'"><input class="time-field" data-word-end="'+i+'" value="'+w.end.toFixed(3)+'"></div>';
+    }).join("");
+    var maxEnd = Math.max(5, words.reduce(function(m, w){ return Math.max(m, w.end); }, 0));
+    $("timelineRuler").innerHTML = [0, 0.2, 0.4, 0.6, 0.8, 1].map(function(f){ return '<span>' + (maxEnd * f).toFixed(1) + 's</span>'; }).join("");
+    $("timeline").innerHTML = words.map(function(w, i){
+      var width = clamp(((w.end - w.start) / maxEnd) * 100, 1.3, 100);
+      return '<div class="timeline-word" title="'+esc(w.text) + ': ' + w.start.toFixed(2) + '–' + w.end.toFixed(2) + 's" style="width:'+width+'%;left:'+((w.start/maxEnd)*100)+'%;"><span>'+esc(w.text)+'</span></div>';
+    }).join("");
     updatePreview();
   }
-  function splitTranscript(text,duration){
-    var tokens=String(text||"").trim().split(/\s+/).filter(Boolean);if(!tokens.length){toast("Paste a transcript first.");return false;}
-    var total=Math.max(1,Number(duration)||Math.max(2,tokens.length*.35)), unit=total/tokens.length;
-    words=tokens.map(function(token,i){return {text:token.replace(/^\s+|\s+$/g,""),start:i*unit,end:(i+1)*unit};});renderWords();return true;
+  function splitTranscript(text, duration){
+    var tokens = String(text || "").trim().split(/\s+/).filter(Boolean); if (!tokens.length) { toast("Paste a transcript first."); return false; }
+    var total = Math.max(1, Number(duration) || Math.max(2, tokens.length * 0.35)), unit = total / tokens.length;
+    words = tokens.map(function(token, i){ return { text: token.replace(/^\s+|\s+$/g, ""), start: i * unit, end: (i + 1) * unit }; });
+    renderWords(); return true;
   }
   function parseSrt(text){
-    var blocks=String(text).replace(/\r/g,"").trim().split(/\n\s*\n/), parsed=[];
-    blocks.forEach(function(block){var rows=block.split("\n"),idx=rows.findIndex(function(r){return r.indexOf("-->")>=0;});if(idx<0)return;var pair=rows[idx].split("-->"),start=parseTime(pair[0].trim()),end=parseTime(pair[1].trim().split(/\s+/)[0]);var cue=rows.slice(idx+1).join(" ").replace(/<[^>]*>/g,"").trim();if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start||!cue)return;var toks=cue.split(/\s+/);var duration=(end-start)/toks.length;toks.forEach(function(t,i){parsed.push({text:t,start:start+i*duration,end:i===toks.length-1?end:start+(i+1)*duration});});});return parsed;
+    var blocks = String(text).replace(/\r/g, "").trim().split(/\n\s*\n/), parsed = [];
+    blocks.forEach(function(block){
+      var rows = block.split("\n"), idx = rows.findIndex(function(r){ return r.indexOf("-->") >= 0; });
+      if (idx < 0) return;
+      var pair = rows[idx].split("-->");
+      var start = parseTime(pair[0]); var end = parseTime(pair[1]);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+      var textValue = rows.slice(idx + 1).join(" ").replace(/<[^>]+>/g, "").trim();
+      if (!textValue) return;
+      textValue.split(/\s+/).forEach(function(token){
+        if (!token) return;
+        parsed.push({ text: token.replace(/[.,!?;:]+$/, ""), start: start, end: end });
+      });
+    });
+    return parsed;
   }
-  function download(name,content,type){var blob=new Blob([content],{type:type||"text/plain;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();window.setTimeout(function(){URL.revokeObjectURL(url);},1500);}
-  function exportSrt(){normalize();if(!words.length){toast("Add or import words first.");return;}var output=words.map(function(w,i){return (i+1)+"\n"+formatTime(w.start,true)+" --> "+formatTime(w.end,true)+"\n"+applyCase(w.text);}).join("\n\n")+"\n";download("layerpop-word-captions.srt",output,"application/x-subrip;charset=utf-8");toast("Word-level SRT exported.");}
-  function applyCase(text){var mode=$("caseMode")?$("caseMode").value:"normal";return mode==="upper"?text.toUpperCase():mode==="lower"?text.toLowerCase():text;}
+  function download(name, content, type){
+    var blob = new Blob([content], { type: type || "text/plain;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a"); a.href = url; a.download = name; a.style.display = "none"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+  function exportSrt(){
+    normalize(); if (!words.length) { toast("Add or import words first."); return; }
+    var output = words.map(function(w, i){ return (i + 1) + "\n" + formatTime(w.start, true) + " --> " + formatTime(w.end, true) + "\n" + w.text + "\n"; }).join("\n");
+    download("layerpop-captions.srt", output, "text/plain;charset=utf-8"); toast("SRT exported with current word timings.");
+  }
+  function applyCase(text){
+    var mode = $("caseMode") ? $("caseMode").value : "normal";
+    return mode === "upper" ? text.toUpperCase() : mode === "lower" ? text.toLowerCase() : text;
+  }
   function exportAss(){
-    normalize();if(!words.length){toast("Add or import words first.");return;}
-    var rgb=$("accentColor").value,rr=rgb.slice(1,3),gg=rgb.slice(3,5),bb=rgb.slice(5,7),color="&H00"+bb+gg+rr;
-    var pos=$("captionPosition")?$("captionPosition").value:"bottom",align=pos==="top"?8:(pos==="center"?5:2),marginV=pos==="top"?120:(pos==="center"?0:190);
-    var animation=$("animationStyle")?$("animationStyle").value:"pop";
-    var header="[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: LayerPop,Arial,"+$("fontSize").value+",&H00FFFFFF,"+color+",&H00000000,&H64000000,-1,0,1,3,2,"+align+",60,60,"+marginV+",1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
-    var body=words.map(function(w){var tags="\\c"+color;if(animation==="fade")tags+="\\fad(90,60)";else if(animation==="pop")tags+="\\fscx65\\fscy65\\t(0,120,\\fscx100\\fscy100)";else if(animation==="scale")tags+="\\fscx10\\fscy10\\t(0,160,\\fscx100\\fscy100)";return "Dialogue: 0,"+formatTime(w.start,false).replace(/\.(\d{3})$/,function(_,n){return "."+n.slice(0,2);})+","+formatTime(w.end,false).replace(/\.(\d{3})$/,function(_,n){return "."+n.slice(0,2);})+",LayerPop,,0,0,0,,{"+tags+"}"+applyCase(w.text).replace(/[{}]/g,"");}).join("\n");
-    download("layerpop-animated-word-captions.ass",header+body+"\n","text/plain;charset=utf-8");toast("ASS captions exported with selected placement and supported animation tags.");
+    normalize(); if (!words.length) { toast("Add or import words first."); return; }
+    var rgb = $("accentColor").value, rr = rgb.slice(1, 3), gg = rgb.slice(3, 5), bb = rgb.slice(5, 7), color = "&H00" + bb + gg + rr;
+    var pos = $("captionPosition") ? $("captionPosition").value : "bottom", align = pos === "top" ? 8 : (pos === "center" ? 5 : 2), marginV = pos === "top" ? 120 : (pos === "center" ? 0 : 190);
+    var animation = $("animationStyle") ? $("animationStyle").value : "pop";
+    var header = "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,56," + color + ",&H80000000,&H80000000,&H80000000,0,0,0,0,100,100,0,1,2,0,2," + align + "," + marginV + ",0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
+    var body = words.map(function(w){
+      var text = applyCase(w.text);
+      var tags = "\\c" + color;
+      if (animation === "fade") tags += "\\fad(90,60)"; else if (animation === "pop") tags += "\\fscx65\\fscy65\\t(0,120,\\fscx100\\fscy100)"; else if (animation === "scale") tags += "\\fscx110\\fscy110\\t(0,140,\\fscx100\\fscy100)";
+      return "Dialogue: 0," + formatTime(w.start, true) + "," + formatTime(w.end, true) + ",Default,," + marginV + "," + marginV + "," + marginV + "," + tags + "," + text;
+    }).join("\n");
+    download("layerpop-animated-word-captions.ass", header + body + "\n", "text/plain;charset=utf-8");
+    toast("ASS captions exported with selected placement and supported animation tags.");
   }
   function transcribeLocal(file){
-    if(!file){toast("Choose a video or audio file first.");return;}
-    var status=$("transcriptionStatus"); var btn=$("transcribeMedia");
-    status.textContent="Connecting to local transcription engine…"; btn.disabled=true;
-    var form=new FormData(); form.append("file",file,file.name);
-    fetch("http://127.0.0.1:8765/transcribe",{method:"POST",body:form})
-      .then(function(r){if(!r.ok)return r.text().then(function(t){throw new Error(t||("HTTP "+r.status));});return r.json();})
+    if (!file) { toast("Choose a video or audio file first."); return; }
+    var status = $("transcriptionStatus"); var btn = $("transcribeMedia");
+    status.textContent = "Connecting to local transcription engine…"; btn.disabled = true;
+    var form = new FormData(); form.append("file", file, file.name);
+    fetch("http://127.0.0.1:8765/transcribe", { method: "POST", body: form })
+      .then(function(r){ if (!r.ok) return r.text().then(function(t){ throw new Error(t || ("HTTP " + r.status)); }); return r.json(); })
       .then(function(data){
-        if(!data.words||!data.words.length)throw new Error("No speech words were detected.");
-        words=data.words.map(function(w){return {text:w.text,start:Number(w.start),end:Number(w.end)};});
-        renderWords();showTab("text");status.textContent="Transcribed "+words.length+" words locally.";
-        toast("Local transcription complete: "+words.length+" words.");
+        if (!data.words || !data.words.length) throw new Error("No speech words were detected.");
+        words = data.words.map(function(w){ return { text: String(w.text || w.word || "").trim(), start: Number(w.start), end: Number(w.end) }; });
+        renderWords(); showTab("text"); status.textContent = "Transcribed " + words.length + " words locally.";
+        toast("Local transcription complete: " + words.length + " words.");
       }).catch(function(err){
-        status.textContent="Local engine unavailable: "+err.message;
+        status.textContent = "Local engine unavailable: " + err.message;
         toast("Start the LayerPop local transcription server; see LOCAL-TRANSCRIPTION.md.");
-        console.error("LayerPop local transcription:",err);
-      }).finally(function(){btn.disabled=false;});
+        console.error("LayerPop local transcription:", err);
+      }).finally(function(){ btn.disabled = false; });
   }
-  function showTab(name){document.querySelectorAll(".step").forEach(function(b){b.classList.toggle("active",b.dataset.tab===name);});document.querySelectorAll(".panel").forEach(function(p){p.classList.toggle("active",p.id==="panel-"+name);});}
-  function checkBridge(){var status=$("bridgeStatus");function set(t){if(status)status.textContent=t;}if(!window.__adobe_cep__){set("CEP host bridge unavailable");return;}if(typeof CSInterface==="undefined"){set("CSInterface.js missing");return;}try{var cs=new CSInterface();cs.evalScript("LP_ping()",function(result){set(result==="LAYERPOP_READY"?"Premiere bridge connected":"Bridge response: "+String(result));});}catch(e){set("Bridge error: "+e.message);}}
+  function showTab(name){ document.querySelectorAll(".step").forEach(function(b){ b.classList.toggle("active", b.dataset.tab === name); }); document.querySelectorAll(".panel").forEach(function(p){ p.classList.toggle("active", p.id === "panel-" + name); }); }
+  function checkBridge(){ var status = $("bridgeStatus"); function set(t){ if (status) status.textContent = t; } if (!window.__adobe_cep__) { set("CEP host bridge unavailable"); return; } if (typeof CSInterface === "undefined") { set("CEP host bridge unavailable"); return; } set("Premiere bridge connected."); }
   function transcribeGladia(file){
-    if(!file){toast("Choose an audio or video file first.");return;}
-    var keyEl=$("gladiaKey"), key=keyEl?keyEl.value.trim():"";
-    if(!key){toast("Paste your Gladia API key first.");if(keyEl)keyEl.focus();return;}
-    var status=$("transcriptionStatus"), btn=$("transcribeGladia");
-    status.textContent="Uploading selected media to Gladia…";btn.disabled=true;
-    var form=new FormData();form.append("file",file);form.append("api_key",key);
-    fetch("http://127.0.0.1:8765/transcribe-gladia",{method:"POST",body:form})
-      .then(function(r){return r.json().then(function(data){if(!r.ok)throw new Error(data.detail||data.error||("HTTP "+r.status));return data;});})
+    if (!file) { toast("Choose an audio or video file first."); return; }
+    var keyEl = $("gladiaKey"), key = keyEl ? keyEl.value.trim() : "";
+    var keyError = validateGladiaKey(key);
+    if (keyError) {
+      toast(keyError); if (keyEl) keyEl.focus(); return;
+    }
+    var status = $("transcriptionStatus"), btn = $("transcribeGladia");
+    status.textContent = "Uploading selected media to Gladia…"; btn.disabled = true;
+    var form = new FormData(); form.append("file", file, file.name); form.append("api_key", key);
+    fetch("http://127.0.0.1:8765/transcribe-gladia", { method: "POST", body: form })
+      .then(function(r){ return r.json().then(function(data){ if (!r.ok) throw new Error(data.detail || data.error || ("HTTP " + r.status)); return data; }); })
       .then(function(data){
-        if(!data.words||!data.words.length)throw new Error("Gladia returned no word timestamps. Check the selected media and API response.");
-        words=data.words.map(function(w){return {text:String(w.text||w.word||"").trim(),start:Number(w.start),end:Number(w.end)};});
-        renderWords();showTab("text");status.textContent="Gladia transcription complete: "+words.length+" words.";toast("Gladia transcription complete: "+words.length+" word cues.");
+        if (!data.words || !data.words.length) throw new Error("Gladia returned no word timestamps. Check the selected media and API response.");
+        words = data.words.map(function(w){ return { text: String(w.text || w.word || "").trim(), start: Number(w.start), end: Number(w.end) }; });
+        renderWords(); showTab("text"); status.textContent = "Gladia transcription complete: " + words.length + " words."; toast("Gladia transcription complete: " + words.length + " word cues.");
       })
-      .catch(function(err){status.textContent="Gladia transcription failed: "+err.message;toast("Gladia error: "+err.message);console.error("LayerPop Gladia:",err);})
-      .finally(function(){btn.disabled=false;});
+      .catch(function(err){ status.textContent = "Gladia transcription failed: " + err.message; toast("Gladia error: " + err.message); console.error("LayerPop Gladia:", err); })
+      .finally(function(){ btn.disabled = false; });
   }
-  function chooseMogrt(){if(!window.cep||!window.cep.fs||typeof window.cep.fs.showOpenDialogEx!=="function"){toast("CEP file picker unavailable.");return;}try{var r=window.cep.fs.showOpenDialogEx(false,false,"Choose a Motion Graphics Template","",["mogrt"]);if(r&&r.err===0&&r.data&&r.data.length){chosenMogrt=r.data[0];$("mogrtStatus").textContent=chosenMogrt;toast("MOGRT selected.");}else if(r&&r.err!==0)toast("File picker error: "+r.err);}catch(e){toast("File picker failed: "+e.message);}}
-  function insertMogrt(){if(!chosenMogrt){toast("Choose a MOGRT first.");return;}if(!window.__adobe_cep__||typeof CSInterface==="undefined"){toast("Premiere CEP bridge is unavailable.");return;}try{var cs=new CSInterface();cs.evalScript("LP_insertMogrt("+JSON.stringify(chosenMogrt)+")",function(result){if(result==="MOGRT_INSERTED"||result==="true")toast("MOGRT insertion reported success.");else toast("MOGRT insertion: "+String(result));});}catch(e){toast("Insertion error: "+e.message);}}
-  function startGeneration(){normalize();if(!words.length){toast("Import an SRT or paste a transcript first.");showTab("text");return;}$("generationModal").classList.remove("hidden");$("generationTitle").textContent="Preparing word captions…";$("generationNote").textContent="Validating "+words.length+" timed words and preparing exports. Native animated graphics are not generated by this step.";$("finishGeneration").classList.add("hidden");$("progressFill").style.width="0%";generationValue=0;clearInterval(generationTimer);generationTimer=window.setInterval(function(){generationValue=Math.min(100,generationValue+8);$("progressFill").style.width=generationValue+"%";$("progressPercent").textContent=generationValue+"%";$("progressLabel").textContent=generationValue<35?"Checking word timings…":generationValue<70?"Preparing caption blocks…":"Preparing export…";if(generationValue>=100){clearInterval(generationTimer);generationTimer=null;$("generationTitle").textContent="Caption data ready";$("progressLabel").textContent="Ready to export";$("generationNote").textContent="Word-level caption data is ready. Export SRT/ASS for timed subtitles. For one animated Premiere graphic per word, a supported graphic-generation integration is still required.";$("finishGeneration").classList.remove("hidden");}},90);}
-  function cancelGeneration(){if(generationTimer){clearInterval(generationTimer);generationTimer=null;}$("generationModal").classList.add("hidden");toast("Generation cancelled.");}
+  function chooseMogrt(){ if (!window.cep || !window.cep.fs || typeof window.cep.fs.showOpenDialogEx !== "function") { toast("CEP file picker unavailable."); return; } try { var r = window.cep.fs.showOpenDialogEx(false, false, "Select MOGRT", null, ["*.mogrt"], null); if (r && r.data && r.data[0]) { chosenMogrt = r.data[0]; $("mogrtStatus").textContent = "Selected: " + chosenMogrt; toast("MOGRT selected."); } } catch (err) { toast("Could not choose MOGRT: " + err.message); } }
+  function insertMogrt(){ if (!chosenMogrt) { toast("Choose a MOGRT first."); return; } if (!window.__adobe_cep__ || typeof CSInterface === "undefined") { toast("Premiere CEP bridge is unavailable."); return; } try { if (window.__adobe_cep__ && window.__adobe_cep__.evalScript) { window.__adobe_cep__.evalScript('LP_insertMogrt("' + chosenMogrt.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '")', function(result){ if (result && result.indexOf("ERROR") === 0) { toast(result); } else { toast("MOGRT insertion request sent to Premiere."); } }); } else { toast("CEP bridge unavailable for MOGRT insertion."); } } catch (err) { toast("MOGRT insertion failed: " + err.message); } }
+  function startGeneration(){ normalize(); if (!words.length) { toast("Import an SRT or paste a transcript first."); showTab("text"); return; } $("generationModal").classList.remove("hidden"); $("generationBar").style.width = "0%"; generationValue = 0; generationTimer = setInterval(function(){ generationValue = Math.min(100, generationValue + 10); $("generationBar").style.width = generationValue + "%"; $("generationStatus").textContent = generationValue < 100 ? "Generating caption layers…" : "Ready for Premiere export."; if (generationValue >= 100) { clearInterval(generationTimer); generationTimer = null; } }, 180); }
+  function cancelGeneration(){ if (generationTimer) { clearInterval(generationTimer); generationTimer = null; } $("generationModal").classList.add("hidden"); toast("Generation cancelled."); }
   function initEvents(){
-    if($("transcribeMedia"))$("transcribeMedia").addEventListener("click",function(){$("mediaFile").dataset.engine="local";$("mediaFile").click();});
-    if($("transcribeGladia"))$("transcribeGladia").addEventListener("click",function(){$("mediaFile").dataset.engine="gladia";$("mediaFile").click();});
-    if($("mediaFile"))$("mediaFile").addEventListener("change",function(){var f=this.files&&this.files[0];if(f){if(this.dataset.engine==="gladia")transcribeGladia(f);else transcribeLocal(f);}this.value="";});
-    document.addEventListener("click",function(e){var t=e.target.closest("[data-tab]");if(t){showTab(t.dataset.tab);return;}var n=e.target.closest("[data-next]");if(n){showTab(n.dataset.next);return;}var b=e.target.closest("[data-back]");if(b){showTab(b.dataset.back);return;}var p=e.target.closest("[data-preset]");if(p){selectedPreset=p.dataset.preset;renderPresets();return;}var rem=e.target.closest("[data-remove-word]");if(rem){words.splice(Number(rem.dataset.removeWord),1);renderWords();return;}var tw=e.target.closest("[data-timeline-word]");if(tw){document.querySelectorAll(".timeline-word").forEach(function(el){el.classList.remove("active");});tw.classList.add("active");return;}});
-    $("accentColor").addEventListener("input",updatePreview);$("textColor").addEventListener("input",updatePreview);$("fontSize").addEventListener("input",updatePreview);
-    $("importSrt").addEventListener("click",function(){$("srtFile").click();});$("srtFile").addEventListener("change",function(){var file=this.files&&this.files[0];if(!file)return;var reader=new FileReader();reader.onload=function(){var parsed=parseSrt(reader.result);if(parsed.length){words=parsed;renderWords();showTab("text");toast("Imported SRT and created "+words.length+" editable word cues.");}else toast("No valid SRT cues found.");};reader.onerror=function(){toast("Couldn't read that file.");};reader.readAsText(file);this.value="";});
-    $("importTranscript").addEventListener("click",function(){$("transcriptModal").classList.remove("hidden");});$("closeTranscript").addEventListener("click",function(){$("transcriptModal").classList.add("hidden");});$("cancelTranscript").addEventListener("click",function(){$("transcriptModal").classList.add("hidden");});$("createWords").addEventListener("click",function(){if(splitTranscript($("transcriptText").value,$("durationInput").value)){$("transcriptModal").classList.add("hidden");showTab("text");toast("Words created with estimated timing.");}});
-    $("addWord").addEventListener("click",function(){var end=words.length?words[words.length-1].end:0;words.push({text:"word",start:end,end:end+.3});renderWords();});$("demoText").addEventListener("click",function(){splitTranscript("THIS IS THE MOMENT THAT CHANGES EVERYTHING",4.2);toast("Demo words loaded with estimated timing.");});
-    $("wordRows").addEventListener("input",function(e){var el=e.target,idx;if(el.dataset.wordText!==undefined){idx=+el.dataset.wordText;words[idx].text=el.value;updatePreview();var block=$("timeline").querySelector('[data-timeline-word="'+idx+'"]');if(block)block.textContent=el.value;}else if(el.dataset.wordStart!==undefined){idx=+el.dataset.wordStart;words[idx].start=Math.max(0,Number(el.value)||0);renderTimelineOnly();}else if(el.dataset.wordEnd!==undefined){idx=+el.dataset.wordEnd;words[idx].end=Math.max(words[idx].start+.01,Number(el.value)||words[idx].start+.01);renderTimelineOnly();}});
-    $("wordsPerBlock").addEventListener("change",function(){toast("Block size set to "+this.value+" word(s). Export remains one cue per word.");});$("caseMode").addEventListener("change",function(){updatePreview();});$("layoutWords").addEventListener("change",function(){toast("Caption block size set to "+this.value+" word(s).");});
-    $("exportSrt").addEventListener("click",exportSrt);$("exportAss").addEventListener("click",exportAss);$("chooseMogrt").addEventListener("click",chooseMogrt);$("generateBtn").addEventListener("click",startGeneration);$("cancelGeneration").addEventListener("click",cancelGeneration);$("closeGeneration").addEventListener("click",cancelGeneration);$("finishGeneration").addEventListener("click",function(){$("generationModal").classList.add("hidden");exportSrt();});
-    $("aboutBtn").addEventListener("click",function(){$("aboutModal").classList.remove("hidden");});$("closeAbout").addEventListener("click",function(){$("aboutModal").classList.add("hidden");});
-    document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();showTab("style");}});
+    if ($("transcribeMedia")) $("transcribeMedia").addEventListener("click", function(){ $("mediaFile").dataset.engine = selectedProvider; $("mediaFile").click(); });
+    if ($("transcribeGladia")) $("transcribeGladia").addEventListener("click", function(){ setProviderFromSelection("gladia"); $("mediaFile").dataset.engine = "gladia"; $("mediaFile").click(); });
+    if ($("providerSelect")) $("providerSelect").addEventListener("change", function(){ setProviderFromSelection(this.value); });
+    if ($("mediaFile")) $("mediaFile").addEventListener("change", function(){ var file = this.files && this.files[0]; if (!file) return; if (this.dataset.engine === "gladia") { transcribeGladia(file); } else { transcribeLocal(file); } this.value = ""; });
+    document.addEventListener("click", function(e){ var t = e.target.closest("[data-tab]"); if (t) { showTab(t.dataset.tab); return; } var n = e.target.closest("[data-next]"); if (n) { showTab(n.dataset.next); return; } var b = e.target.closest("[data-back]"); if (b) { showTab(b.dataset.back); return; } var preset = e.target.closest("[data-preset]"); if (preset) { selectedPreset = preset.dataset.preset; renderPresets(); toast("Preset: " + selectedPreset); } });
+    $("accentColor").addEventListener("input", updatePreview); $("textColor").addEventListener("input", updatePreview); $("fontSize").addEventListener("input", updatePreview);
+    $("importSrt").addEventListener("click", function(){ $("srtFile").click(); }); $("srtFile").addEventListener("change", function(){ var file = this.files && this.files[0]; if (!file) return; var reader = new FileReader(); reader.onload = function(){ var parsed = parseSrt(reader.result || ""); if (!parsed.length) { toast("No valid SRT cues were found."); return; } words = parsed; renderWords(); toast("Imported " + words.length + " word cues from SRT."); }; reader.readAsText(file); this.value = ""; });
+    $("importTranscript").addEventListener("click", function(){ $("transcriptModal").classList.remove("hidden"); }); $("closeTranscript").addEventListener("click", function(){ $("transcriptModal").classList.add("hidden"); });
+    $("addWord").addEventListener("click", function(){ var end = words.length ? words[words.length - 1].end : 0; words.push({ text: "word", start: end, end: end + 0.3 }); renderWords(); });
+    $("demoText").addEventListener("click", function(){ var text = $("transcriptInput").value; splitTranscript(text, 22); $("transcriptModal").classList.add("hidden"); });
+    $("wordRows").addEventListener("input", function(e){
+      var el = e.target;
+      if (typeof el.dataset.wordText !== "undefined") { var idx = +el.dataset.wordText; words[idx].text = el.value; updatePreview(); }
+      if (typeof el.dataset.wordStart !== "undefined") { var idxStart = +el.dataset.wordStart; words[idxStart].start = Number(el.value) || 0; }
+      if (typeof el.dataset.wordEnd !== "undefined") { var idxEnd = +el.dataset.wordEnd; words[idxEnd].end = Number(el.value) || 0; }
+      renderWords();
+    });
+    $("wordsPerBlock").addEventListener("change", function(){ toast("Block size set to " + this.value + " word(s). Export remains one cue per word."); });
+    $("caseMode").addEventListener("change", function(){ updatePreview(); });
+    $("exportSrt").addEventListener("click", exportSrt); $("exportAss").addEventListener("click", exportAss); $("chooseMogrt").addEventListener("click", chooseMogrt); $("generateBtn").addEventListener("click", startGeneration); $("closeGeneration").addEventListener("click", cancelGeneration); $("aboutBtn").addEventListener("click", function(){ $("aboutModal").classList.remove("hidden"); }); $("closeAbout").addEventListener("click", function(){ $("aboutModal").classList.add("hidden"); });
+    document.addEventListener("keydown", function(e){ if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); showTab("style"); }});
   }
-  function renderTimelineOnly(){var maxEnd=Math.max(5,words.reduce(function(m,w){return Math.max(m,w.end);},0));$("timeline").innerHTML=words.map(function(w,i){var width=clamp((w.end-w.start)/maxEnd*100,1.3,100);return '<div class="timeline-word" title="'+esc(w.text)+': '+w.start.toFixed(2)+'–'+w.end.toFixed(2)+'s" style="width:'+Math.max(28,width*4.8)+'px;" data-timeline-word="'+i+'">'+esc(w.text)+'</div>';}).join("");}
-  function boot(){renderPresets();initEvents();checkBridge();}
-  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
+  function renderTimelineOnly(){ var maxEnd = Math.max(5, words.reduce(function(m, w){ return Math.max(m, w.end); }, 0)); $("timeline").innerHTML = words.map(function(w, i){ var width = clamp(((w.end - w.start) / maxEnd) * 100, 1.3, 100); return '<div class="timeline-word" title="'+esc(w.text)+': '+w.start.toFixed(2)+'–'+w.end.toFixed(2)+'s" style="width:'+width+'%;left:'+((w.start/maxEnd)*100)+'%;"><span>'+esc(w.text)+'</span></div>'; }).join(""); }
+  function boot(){ renderPresets(); initEvents(); updateProviderUI(); checkBridge(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();
+

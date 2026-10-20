@@ -9,19 +9,42 @@ app.add_middleware(CORSMiddleware, allow_origins=["null", "*"], allow_credential
 _model = None
 _lock = threading.Lock()
 MODEL_SIZE = os.environ.get("LAYERPOP_WHISPER_MODEL", "small")
-DEVICE = os.environ.get("LAYERPOP_WHISPER_DEVICE", "cpu")
+DEVICE = os.environ.get("LAYERPOP_WHISPER_DEVICE", "auto")
 COMPUTE = os.environ.get("LAYERPOP_WHISPER_COMPUTE", "int8")
+
+
+def resolve_device():
+    requested = (DEVICE or "auto").lower()
+    try:
+        import torch
+        cuda_ok = torch.cuda.is_available()
+    except Exception:
+        cuda_ok = False
+    if requested == "cuda" and not cuda_ok:
+        return "cpu"
+    if requested == "auto":
+        return "cuda" if cuda_ok else "cpu"
+    return requested
+
 
 def get_model():
     global _model
+    effective_device = resolve_device()
     with _lock:
         if _model is None:
-            _model = WhisperModel(MODEL_SIZE, device=DEVICE, compute_type=COMPUTE)
+            _model = WhisperModel(MODEL_SIZE, device=effective_device, compute_type=COMPUTE)
     return _model
+
 
 @app.get("/health")
 def health():
-    return {"ok": True, "engine": "faster-whisper", "model": MODEL_SIZE, "device": DEVICE}
+    return {"ok": True, "engine": "faster-whisper", "model": MODEL_SIZE, "device": resolve_device(), "supports_cuda": resolve_device() == "cuda"}
+
+
+@app.get("/config")
+def config():
+    return {"provider": "local-whisper", "model": MODEL_SIZE, "device": resolve_device(), "compute": COMPUTE, "available": True}
+
 
 @app.post("/transcribe")
 async def transcribe(file: UploadFile = File(...)):
@@ -34,7 +57,8 @@ async def transcribe(file: UploadFile = File(...)):
         if len(data) > 2 * 1024 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="File exceeds 2 GB limit.")
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(data); tmp_path = tmp.name
+            tmp.write(data)
+            tmp_path = tmp.name
         model = get_model()
         segments, info = model.transcribe(tmp_path, word_timestamps=True, vad_filter=True, beam_size=5)
         words = []
@@ -50,13 +74,14 @@ async def transcribe(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}")
     finally:
         if tmp_path and os.path.exists(tmp_path):
-            try: os.remove(tmp_path)
-            except OSError: pass
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 
 @app.post("/transcribe-gladia")
 async def transcribe_gladia(file: UploadFile = File(...), api_key: str = Form("")):
-    """Use the user's own Gladia API key for cloud transcription. Key is never saved."""
     key = (api_key or "").strip()
     if not key:
         raise HTTPException(status_code=400, detail="Enter your Gladia API key.")
@@ -70,19 +95,27 @@ async def transcribe_gladia(file: UploadFile = File(...), api_key: str = Form(""
         if len(data) > 2 * 1024 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="File exceeds 2 GB limit.")
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(data); tmp_path = tmp.name
-        # Gladia v2 uses a two-step flow: upload then create/poll a pre-recorded job.
+            tmp.write(data)
+            tmp_path = tmp.name
         with open(tmp_path, "rb") as media:
-            upload = requests.post("https://api.gladia.io/v2/upload", headers=headers,
-                files={"audio": (Path(file.filename or "media").name, media, file.content_type or "application/octet-stream")}, timeout=300)
+            upload = requests.post(
+                "https://api.gladia.io/v2/upload",
+                headers=headers,
+                files={"audio": (Path(file.filename or "media").name, media, file.content_type or "application/octet-stream")},
+                timeout=300,
+            )
         if upload.status_code >= 400:
             raise HTTPException(status_code=502, detail="Gladia upload failed (HTTP %s): %s" % (upload.status_code, upload.text[:500]))
         upload_data = upload.json()
         audio_url = upload_data.get("audio_url") or upload_data.get("url")
         if not audio_url:
             raise HTTPException(status_code=502, detail="Gladia upload response did not contain an audio_url.")
-        init = requests.post("https://api.gladia.io/v2/pre-recorded", headers={**headers, "Content-Type":"application/json"},
-            json={"audio_url": audio_url, "detect_language": True, "custom_vocabulary": []}, timeout=60)
+        init = requests.post(
+            "https://api.gladia.io/v2/pre-recorded",
+            headers={**headers, "Content-Type": "application/json"},
+            json={"audio_url": audio_url, "detect_language": True, "custom_vocabulary": []},
+            timeout=60,
+        )
         if init.status_code >= 400:
             raise HTTPException(status_code=502, detail="Gladia job creation failed (HTTP %s): %s" % (init.status_code, init.text[:500]))
         job = init.json()
@@ -91,7 +124,6 @@ async def transcribe_gladia(file: UploadFile = File(...), api_key: str = Form(""
         if not result_url and job_id:
             result_url = "https://api.gladia.io/v2/pre-recorded/" + str(job_id)
         if not result_url:
-            # Some API configurations return the result immediately.
             result = job
         else:
             result = None
@@ -109,39 +141,53 @@ async def transcribe_gladia(file: UploadFile = File(...), api_key: str = Form(""
                 time.sleep(2)
             if result is None:
                 raise HTTPException(status_code=504, detail="Timed out waiting for Gladia. Check your Gladia dashboard for job status.")
-        # Accept the common v2 shape and nested result/transcription shapes.
         roots = [result]
-        for k in ("result", "transcription", "prediction"):
-            v = result.get(k) if isinstance(result, dict) else None
-            if isinstance(v, dict): roots.append(v)
+        for key_name in ("result", "transcription", "prediction"):
+            value = result.get(key_name) if isinstance(result, dict) else None
+            if isinstance(value, dict):
+                roots.append(value)
+
         words = []
         def add_word(item):
-            if not isinstance(item, dict): return
+            if not isinstance(item, dict):
+                return
             text = item.get("word") or item.get("text")
-            start, end = item.get("start"), item.get("end")
+            start = item.get("start")
+            end = item.get("end")
             if text is not None and start is not None and end is not None:
                 try:
-                    a, b = float(start), float(end)
-                    if b > a: words.append({"text": str(text).strip(), "start": round(a, 3), "end": round(b, 3)})
-                except (TypeError, ValueError): pass
+                    a = float(start); b = float(end)
+                    if b > a:
+                        words.append({"text": str(text).strip(), "start": round(a, 3), "end": round(b, 3)})
+                except (TypeError, ValueError):
+                    pass
+
         for root in roots:
             for key_name in ("words", "utterances", "segments"):
-                arr = root.get(key_name) if isinstance(root, dict) else None
-                if isinstance(arr, list):
-                    for item in arr:
-                        if key_name == "words": add_word(item)
+                items = root.get(key_name) if isinstance(root, dict) else None
+                if isinstance(items, list):
+                    for item in items:
+                        if key_name == "words":
+                            add_word(item)
                         elif isinstance(item, dict):
                             nested = item.get("words")
                             if isinstance(nested, list):
-                                for w in nested: add_word(w)
-                            elif key_name == "segments": add_word(item)
-        # Deduplicate repeated nested result paths while preserving order.
-        unique=[]; seen=set()
-        for w in sorted(words, key=lambda x:(x["start"],x["end"])):
-            sig=(w["text"],w["start"],w["end"])
-            if sig not in seen: seen.add(sig); unique.append(w)
+                                for word in nested:
+                                    add_word(word)
+                            elif key_name == "segments":
+                                add_word(item)
+
+        unique = []
+        seen = set()
+        for w in sorted(words, key=lambda item: (item["start"], item["end"])):
+            sig = (w["text"], w["start"], w["end"])
+            if sig not in seen:
+                seen.add(sig)
+                unique.append(w)
+
         if not unique:
             raise HTTPException(status_code=502, detail="Gladia job finished, but no word-level timestamps were found in its response. API response schema may have changed.")
+
         return {"words": unique, "engine": "Gladia", "count": len(unique), "job_id": job_id}
     except HTTPException:
         raise
@@ -151,5 +197,7 @@ async def transcribe_gladia(file: UploadFile = File(...), api_key: str = Form(""
         raise HTTPException(status_code=500, detail="Gladia transcription failed: " + str(exc))
     finally:
         if tmp_path and os.path.exists(tmp_path):
-            try: os.remove(tmp_path)
-            except OSError: pass
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
