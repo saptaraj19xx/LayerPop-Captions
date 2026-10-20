@@ -1,40 +1,280 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LayerPop Viral Captions 5.0</title><link rel="stylesheet" href="styles.css">
-</head>
-<body>
-<header class="topbar"><div class="brandmark">LP</div><div class="brand"><strong>LayerPop</strong><span>WORD-LEVEL CAPTIONS <i>5.0</i></span></div><div class="bridge" id="bridgeStatus">Checking Premiere bridge…</div><button id="aboutBtn" class="icon-btn" title="About">ⓘ</button></header>
-<main>
-<nav class="steps"><button class="step active" data-tab="style"><b>1</b> Style</button><button class="step" data-tab="text"><b>2</b> Text & timing</button><button class="step" data-tab="layout"><b>3</b> Generate & export</button></nav>
-<section class="panel active" id="panel-style">
-<div class="heading"><div><p class="eyebrow">CAPTION WORKSPACE / 01</p><h1>Find your look.</h1><p>Choose a style for your word-by-word captions.</p></div><span class="count">36 ORIGINAL STYLES</span></div>
-<div class="preset-grid" id="presetGrid"></div>
-<div class="controls-row"><label>Highlight color <input id="accentColor" type="color" value="#c7ff45"></label><label>Text color <input id="textColor" type="color" value="#ffffff"></label><label>Font size <input id="fontSize" type="range" min="28" max="96" value="64"></label><output id="fontSizeOut">64 px</output></div>
-<div class="preview"><span class="eyebrow">LIVE PREVIEW · 9:16</span><div id="previewText" class="caption-preview">THIS IS <b>THE MOMENT</b></div></div>
-<div class="footer-actions"><span class="hint">Style can be changed at any time.</span><button class="primary" data-next="text">Continue to text <span>→</span></button></div>
-</section>
-<section class="panel" id="panel-text">
-<div class="heading"><div><p class="eyebrow">CAPTION WORKSPACE / 02</p><h1>Every word, on time.</h1><p>Import timed captions, paste a transcript, or transcribe audio/video locally into word-level cues.</p></div><span class="count" id="wordCount">0 WORDS</span></div>
-<div class="toolbar"><button class="primary" id="transcribeMedia">Transcribe locally (free)</button><button class="secondary" id="transcribeGladia">Transcribe with Gladia</button><input id="mediaFile" type="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.mp4,.mov,.mkv,.webm" hidden><input id="gladiaKey" type="password" autocomplete="off" placeholder="Gladia API key (free credits)" aria-label="Gladia API key" style="min-width:220px"><button class="secondary" id="importSrt">Import SRT</button><button class="secondary" id="importTranscript">Paste transcript</button><button class="secondary" id="addWord">＋ Add word</button><button class="quiet" id="demoText">Load demo</button><input id="srtFile" type="file" accept=".srt,.txt" hidden><div id="transcriptionStatus" class="file-status">Local mode keeps media on your PC. Gladia mode uploads selected media to Gladia; free credits/limits depend on your account.</div></div>
-<div class="notice"><strong>About timing</strong><span>SRT imports preserve cue timing; splitting a transcript estimates timing evenly. Accurate speech synchronization needs a transcription engine with word timestamps.</span></div>
-<div class="word-editor"><div class="editor-toolbar"><span>WORD EDITOR</span><div><label>Words per block <select id="wordsPerBlock"><option>1</option><option selected>3</option><option>4</option><option>5</option><option>6</option></select></label><label>Case <select id="caseMode"><option value="normal">Normal</option><option value="upper">UPPERCASE</option><option value="lower">lowercase</option></select></label></div></div><div id="wordRows" class="word-rows"><div class="empty">Import an SRT or paste a transcript to start.</div></div></div>
-<div class="timeline-card"><div class="timeline-head"><strong>WORD TIMELINE</strong><span>Drag timing fields above to adjust each word</span></div><div id="timelineRuler" class="timeline-ruler"><span>0.0s</span><span>5s</span><span>10s</span><span>15s</span><span>20s</span><span>25s</span></div><div id="timeline" class="timeline"><div class="empty">Your timed words will appear here.</div></div></div>
-<div class="footer-actions"><button class="secondary" data-back="style">← Back to style</button><button class="primary" data-next="layout">Continue to generation <span>→</span></button></div>
-</section>
-<section class="panel" id="panel-layout">
-<div class="heading"><div><p class="eyebrow">CAPTION WORKSPACE / 03</p><h1>Make it move.</h1><p>Prepare your word-level captions and export them.</p></div></div>
-<div class="generation-card"><div class="generation-icon">✦</div><div><h2>Animated word captions</h2><p>Generate a preview and timed caption exports. Each word is represented as its own cue.</p></div></div>
-<div class="settings-grid"><label>Animation style<select id="animationStyle"><option value="pop">Pop in</option><option value="fade">Fade in</option><option value="scale">Scale up</option><option value="none">No animation (subtitle)</option></select></label><label>Caption position<select id="captionPosition"><option value="bottom">Bottom safe area</option><option value="center">Center</option><option value="top">Top safe area</option></select></label><label>Words per caption block<select id="layoutWords"><option value="1">1 word</option><option value="2">2 words</option><option value="3" selected>3 words</option><option value="4">4 words</option><option value="5">5 words</option></select></label></div>
-<div class="export-list"><div><div class="export-badge">SRT</div><div><strong>Timed subtitle file</strong><p>One cue per word, using current timestamps.</p></div><button class="secondary" id="exportSrt">Export SRT</button></div><div><div class="export-badge">ASS</div><div><strong>Styled subtitle file</strong><p>Color and font styling for compatible players.</p></div><button class="secondary" id="exportAss">Export ASS</button></div><div><div class="export-badge">MOGRT</div><div><strong>Premiere template</strong><p>Insert a chosen template into the active sequence where supported.</p></div><button class="secondary" id="chooseMogrt">Choose file</button></div></div>
-<div id="mogrtStatus" class="file-status">No MOGRT selected.</div>
-<div class="footer-actions"><button class="secondary" data-back="text">← Back to text</button><button class="primary" id="generateBtn">✦ Generate captions</button></div>
-</section>
-</main>
-<div id="generationModal" class="modal hidden"><div class="modal-box"><div class="modal-top"><span class="eyebrow">LAYERPOP GENERATOR</span><button id="closeGeneration" class="icon-btn">×</button></div><h2 id="generationTitle">Preparing captions…</h2><div class="progress"><div id="progressFill"></div></div><div class="progress-row"><span id="progressLabel">Checking caption cues</span><span id="progressPercent">0%</span></div><p id="generationNote">Preparing word-level export data. This does not create native animated graphics by itself.</p><div class="modal-actions"><button id="cancelGeneration" class="secondary">Cancel</button><button id="finishGeneration" class="primary hidden">Export SRT</button></div></div></div>
-<div id="transcriptModal" class="modal hidden"><div class="modal-box"><div class="modal-top"><span class="eyebrow">TRANSCRIPT INPUT</span><button id="closeTranscript" class="icon-btn">×</button></div><h2>Paste your transcript</h2><p>We'll split it into editable words and estimate timing. For accurate word sync, import an SRT that already has timing or connect a word-timestamp transcription engine.</p><textarea id="transcriptText" class="transcript-input" placeholder="Paste your transcript here…"></textarea><label class="full-label">Estimated duration (seconds)<input id="durationInput" type="number" min="1" step="0.5" value="15"></label><div class="modal-actions"><button id="cancelTranscript" class="secondary">Cancel</button><button id="createWords" class="primary">Split into words</button></div></div></div>
-<div id="aboutModal" class="modal hidden"><div class="modal-box"><div class="modal-top"><span class="eyebrow">ABOUT</span><button id="closeAbout" class="icon-btn">×</button></div><h2>LayerPop Viral Captions 5.2</h2><p>Word-level editing, estimated transcript splitting, SRT/ASS export, and a Premiere CEP bridge.</p><p class="notice">Automatic speech recognition and true animated graphic generation require additional integrations; this build does not pretend to provide them.</p></div></div>
-<div id="toast" role="status"></div>
-<script src="CSInterface.js"></script><script src="app.js"></script>
-</body></html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LayerPop Viral Captions 5.2</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand-wrap">
+        <div class="brandmark">LP</div>
+        <div class="brand-text">
+          <strong>LayerPop</strong>
+          <span>WORD-LEVEL CAPTIONS <em>5.2</em></span>
+        </div>
+      </div>
+      <div class="bridge-status" id="bridgeStatus">Checking Premiere bridge…</div>
+      <button id="aboutBtn" class="icon-btn" type="button" aria-label="About LayerPop">ⓘ</button>
+    </header>
+
+    <main class="workspace">
+      <nav class="steps" aria-label="Workspace steps">
+        <button class="step active" type="button" data-tab="style"><b>1</b> Style</button>
+        <button class="step" type="button" data-tab="text"><b>2</b> Text &amp; timing</button>
+        <button class="step" type="button" data-tab="layout"><b>3</b> Generate &amp; export</button>
+      </nav>
+
+      <section class="panel active" id="panel-style">
+        <div class="heading">
+          <div>
+            <p class="eyebrow">CAPTION WORKSPACE / 01</p>
+            <h1>Find your look.</h1>
+            <p>Choose a style for your word-by-word captions.</p>
+          </div>
+          <span class="count">36 ORIGINAL STYLES</span>
+        </div>
+
+        <div class="preset-grid" id="presetGrid"></div>
+
+        <div class="controls-row">
+          <label>Highlight color <input id="accentColor" type="color" value="#c7ff45" /></label>
+          <label>Text color <input id="textColor" type="color" value="#ffffff" /></label>
+          <label>Font size <input id="fontSize" type="range" min="28" max="96" value="64" /></label>
+          <output id="fontSizeOut">64 px</output>
+        </div>
+
+        <div class="preview-card">
+          <span class="eyebrow">LIVE PREVIEW · 9:16</span>
+          <div id="previewText" class="caption-preview">THIS IS <b>THE MOMENT</b></div>
+        </div>
+
+        <div class="footer-actions">
+          <span class="hint">Style can be changed at any time.</span>
+          <button class="primary" type="button" data-next="text">Continue to text <span>→</span></button>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-text">
+        <div class="heading">
+          <div>
+            <p class="eyebrow">CAPTION WORKSPACE / 02</p>
+            <h1>Every word, on time.</h1>
+            <p>Import timed captions, paste a transcript, or transcribe audio/video locally into word-level cues.</p>
+          </div>
+          <span class="count" id="wordCount">0 WORDS</span>
+        </div>
+
+        <div class="toolbar">
+          <div class="provider-wrap">
+            <label for="providerSelect">Transcription mode</label>
+            <select id="providerSelect">
+              <option value="local">Local engine</option>
+              <option value="gladia">Gladia Cloud</option>
+            </select>
+          </div>
+          <button id="transcribeMedia" class="primary" type="button">Transcribe locally (free)</button>
+          <button id="transcribeGladia" class="secondary" type="button">Transcribe with Gladia</button>
+          <input id="mediaFile" type="file" accept="audio/*,video/*" hidden />
+        </div>
+
+        <div class="gladia-row" id="gladiaKeyRow" style="display:none;">
+          <label for="gladiaKey">Gladia API key</label>
+          <input id="gladiaKey" type="password" placeholder="Enter Gladia API key" />
+          <span id="transcribeActionLabel">Transcribe locally</span>
+        </div>
+
+        <div class="notice">
+          <strong>About timing</strong>
+          <span>SRT imports preserve cue timing; splitting a transcript estimates timing evenly. Accurate speech synchronization needs a transcription engine or an SRT with timestamps.</span>
+        </div>
+
+        <div class="word-editor">
+          <div class="editor-toolbar">
+            <span>WORD EDITOR</span>
+            <div>
+              <label>Words per block
+                <select id="wordsPerBlock">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3" selected>3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
+              </label>
+              <label>Case
+                <select id="caseMode">
+                  <option value="normal">Normal</option>
+                  <option value="upper">Uppercase</option>
+                  <option value="lower">Lowercase</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="timeline-card">
+            <div class="timeline-head">
+              <strong>WORD TIMELINE</strong>
+              <span>Adjust timing fields to fine-tune each cue</span>
+            </div>
+            <div id="timelineRuler" class="timeline-ruler"><span>0.0s</span><span>5s</span><span>10s</span><span>15s</span><span>20s</span><span>25s</span></div>
+            <div id="timeline" class="timeline"><div class="empty">Your timed words will appear here.</div></div>
+          </div>
+
+          <div class="editor-table-wrap">
+            <div id="wordRows" class="word-rows"><div class="empty">Import an SRT or paste a transcript to start.</div></div>
+          </div>
+        </div>
+
+        <div class="footer-actions">
+          <button class="secondary" type="button" data-back="style">← Back to style</button>
+          <button class="primary" type="button" data-next="layout">Continue to generation <span>→</span></button>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-layout">
+        <div class="heading">
+          <div>
+            <p class="eyebrow">CAPTION WORKSPACE / 03</p>
+            <h1>Make it move.</h1>
+            <p>Prepare your word-level captions and export them.</p>
+          </div>
+        </div>
+
+        <div class="generation-card">
+          <div class="generation-icon">✦</div>
+          <div>
+            <h2>Animated word captions</h2>
+            <p>Generate a preview and timed caption exports. Each word is represented as its own cue.</p>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <label>Animation style
+            <select id="animationStyle">
+              <option value="pop">Pop in</option>
+              <option value="fade">Fade in</option>
+              <option value="scale">Scale up</option>
+              <option value="none">No animation (subtitle)</option>
+            </select>
+          </label>
+
+          <label>Caption position
+            <select id="captionPosition">
+              <option value="bottom">Bottom safe area</option>
+              <option value="center">Center</option>
+              <option value="top">Top safe area</option>
+            </select>
+          </label>
+
+          <label>Words per caption block
+            <select id="layoutWords">
+              <option value="1">1 word</option>
+              <option value="2">2 words</option>
+              <option value="3" selected>3 words</option>
+              <option value="4">4 words</option>
+              <option value="5">5 words</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="export-list">
+          <div class="export-item">
+            <div class="export-badge">SRT</div>
+            <div>
+              <strong>Timed subtitle file</strong>
+              <p>One cue per word, using current timestamps.</p>
+            </div>
+            <button class="secondary" id="exportSrt" type="button">Export SRT</button>
+          </div>
+
+          <div class="export-item">
+            <div class="export-badge">ASS</div>
+            <div>
+              <strong>Styled subtitle file</strong>
+              <p>Color and font styling for compatible players.</p>
+            </div>
+            <button class="secondary" id="exportAss" type="button">Export ASS</button>
+          </div>
+
+          <div class="export-item">
+            <div class="export-badge">MOGRT</div>
+            <div>
+              <strong>Premiere template</strong>
+              <p>Insert a chosen template into the active sequence where supported.</p>
+            </div>
+            <button class="secondary" id="chooseMogrt" type="button">Choose file</button>
+          </div>
+        </div>
+
+        <div id="mogrtStatus" class="file-status">No MOGRT selected.</div>
+
+        <div class="footer-actions">
+          <button class="secondary" type="button" data-back="text">← Back to text</button>
+          <button id="generateBtn" class="primary" type="button">✦ Generate captions</button>
+        </div>
+      </section>
+    </main>
+
+    <div id="generationModal" class="modal hidden">
+      <div class="modal-box">
+        <div class="modal-top">
+          <span class="eyebrow">LAYERPOP GENERATOR</span>
+          <button id="closeGeneration" class="icon-btn" type="button">×</button>
+        </div>
+        <h2 id="generationTitle">Preparing captions…</h2>
+        <div class="progress">
+          <div id="progressFill"></div>
+        </div>
+        <div class="progress-row">
+          <span id="progressLabel">Checking caption cues</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <p id="generationNote">Preparing word-level export data. This does not create native animated graphics by itself.</p>
+        <div class="modal-actions">
+          <button id="cancelGeneration" class="secondary" type="button">Cancel</button>
+          <button id="finishGeneration" class="primary hidden" type="button">Export SRT</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="transcriptModal" class="modal hidden">
+      <div class="modal-box">
+        <div class="modal-top">
+          <span class="eyebrow">TRANSCRIPT INPUT</span>
+          <button id="closeTranscript" class="icon-btn" type="button">×</button>
+        </div>
+        <h2>Paste your transcript</h2>
+        <p>We’ll split it into editable words and estimate timing. For accurate sync, import an SRT or use a transcript engine.</p>
+        <textarea id="transcriptText" class="transcript-input" placeholder="Paste your transcript here…"></textarea>
+        <label class="full-label">Estimated duration (seconds)
+          <input id="durationInput" type="number" min="1" step="0.5" value="15" />
+        </label>
+        <div class="modal-actions">
+          <button id="cancelTranscript" class="secondary" type="button">Cancel</button>
+          <button id="createWords" class="primary" type="button">Split into words</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="aboutModal" class="modal hidden">
+      <div class="modal-box">
+        <div class="modal-top">
+          <span class="eyebrow">ABOUT</span>
+          <button id="closeAbout" class="icon-btn" type="button">×</button>
+        </div>
+        <h2>LayerPop Viral Captions 5.2</h2>
+        <p>Word-level editing, estimated transcript splitting, SRT/ASS export, and a Premiere CEP bridge.</p>
+        <p class="notice">Automatic speech recognition and true animated graphic generation require additional integrations; this build focuses on the UI and export workflow.</p>
+      </div>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <input id="srtFile" type="file" accept=".srt,.txt" hidden />
+    <script src="CSInterface.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
