@@ -1,27 +1,114 @@
-# LayerPop Viral Captions 5.2 — CEP + Cloud/Local Transcription
+# LayerPop Viral Captions 5.2
 
-## What is included in this build
-- 36 original caption style presets, color controls and live preview.
-- Editable word cues/timing timeline.
-- SRT import/export and ASS export with basic fade/pop/scale tags and top/center/bottom placement. ASS effects depend on the player/editor interpreting the tags.
-- Local speech transcription companion powered by faster-whisper (free local processing; downloads Python packages and a model on first run).
-- Optional Gladia cloud transcription using your own API key and account credits. Selected media is uploaded to Gladia; the key is sent to the local companion for that request and is not written to disk by this extension.
-- CEP bridge diagnostic and best-effort selected-MOGRT insertion.
+LayerPop Viral Captions is a Premiere-oriented caption workflow for creating, editing, styling, and exporting word-level subtitles for video content.
+
+It is designed to help creators and editors move faster from transcript to finished caption file with a clean UI, live preview, flexible styling, and support for common subtitle export formats.
+
+## What this project includes
+
+- 36 original caption style presets with color controls and live preview
+- Editable word cues and timeline-based timing controls
+- SRT import/export and ASS export support
+- Local speech transcription workflow powered by a local companion
+- Optional Gladia cloud transcription using a user-provided API key
+- Premiere CEP bridge diagnostics and best-effort selected-MOGRT insertion
+
+## Supported export formats
+
+- SRT
+- ASS
+- Premiere-oriented generation workflow for word-level caption placement
+
+## Why this project exists
+
+Subtitle work is often slow, repetitive, and highly manual. LayerPop aims to simplify that process by combining:
+
+- rapid caption generation
+- easy word-level editing
+- live visual styling
+- export-ready subtitle formats
+- flexible transcription options
+
+## Features
+
+### Caption workflow
+- Create subtitle blocks from transcript text
+- Split transcripts into word-level cues
+- Adjust start/end timing for individual words
+- Import SRT files and preserve timing metadata
+
+### Styling
+- Choose from multiple preset looks
+- Adjust accent color, text color, and font size
+- Preview styles live before export
+- Control animation style and caption placement
+
+### Transcription
+- Local transcription using a free local-processing workflow
+- Optional cloud transcription through Gladia
+- Compatibility with audio and video inputs
+
+### Export
+- Export timed subtitle files as SRT
+- Export styled subtitle files as ASS
+- Prepare a workflow for Premiere-based generation and placement
+
+## Supported use cases
+
+- Social media captions
+- Short-form video subtitles
+- Podcast subtitle workflows
+- Creator and editor production pipelines
+- Multilingual subtitle preparation
 
 ## Setup
-1. Back up your current extension folder. Copy this folder into `%APPDATA%\Adobe\CEP\extensions\LayerPop-Viral-Captions-5.0` (folder name can remain as shown).
-2. Install Python 3.11 x64, then run `START-LOCAL-TRANSCRIPTION.bat`. Leave its terminal open. The first run installs dependencies.
-3. Restart Premiere Pro and open LayerPop from the Extensions menu.
-4. For local transcription, click **Transcribe locally (free)** and choose media. For cloud, enter your Gladia API key, click **Transcribe with Gladia**, and choose media. Create a Gladia account/key at https://app.gladia.io.
 
-## Cost and privacy
-- Local mode processes media on your PC after dependencies/model are downloaded.
-- Gladia mode sends the selected media to Gladia. Free credits/quotas are controlled by Gladia and are not unlimited or guaranteed to renew. Do not use cloud mode for sensitive media unless you are comfortable sending it to the provider.
-- The companion binds to `127.0.0.1` only; it is intended for the local extension.
+1. Back up your current extension folder.
+2. Copy this project into your Adobe CEP extensions folder.
+3. Install Python 3.11 x64.
+4. Run `START-LOCAL-TRANSCRIPTION.bat` and leave the terminal open.
+5. Restart Premiere Pro and launch LayerPop from the Extensions menu.
+6. Use either the local transcription mode or the Gladia cloud mode depending on your workflow.
 
-## Important limitations (not hidden)
-- This is an in-progress CEP extension, not a feature-complete SubKick clone.
-- The style picker previews presets, but not every preset has been verified in a native Premiere graphic.
-- ASS export includes subtitle styling and basic timed effects for compatible ASS renderers; it does not create native editable Premiere graphics.
-- The selected MOGRT insertion is a best-effort call and needs live Premiere testing. Generic replacement of arbitrary MOGRT text and generating one native animated Premiere graphic per word is not implemented in this build.
-- Gladia integration is coded against the documented v2 upload/pre-recorded workflow but requires a real API key and a live end-to-end test.
+## Local transcription
+
+The local transcription companion uses a free local processing pipeline. On first run, it installs required Python dependencies and downloads the speech model needed for transcription.
+
+## Gladia cloud transcription
+
+Cloud transcription is optional and uses your own Gladia API key. The selected media is uploaded to Gladia for processing, and the key is used only for that request.
+
+## Privacy and cost notes
+
+- Local mode processes media on your PC after dependencies and model files are downloaded.
+- Cloud mode sends selected media to Gladia. Credits and quotas are managed by Gladia and are not guaranteed.
+- Do not use cloud mode for sensitive media unless you are comfortable with external processing.
+- The local companion binds only to `127.0.0.1` and is intended for local extension use.
+
+## Important limitations
+
+This is an in-progress CEP extension and not a fully feature-complete clone of a commercial caption suite.
+
+- Style presets are previewed in the UI, but not every preset has been fully verified in native Premiere graphics.
+- ASS export includes subtitle styling and simple timed effects for compatible ASS renderers; it does not create fully native Premiere editable graphics.
+- Selected MOGRT insertion is best-effort and requires live Premiere validation.
+- Gladia integration requires a valid API key and a live end-to-end test in a real environment.
+
+## Project status
+
+This project is under active development and focuses on subtitle generation, caption styling, and export workflows for modern video production.
+
+## License
+
+Please check the repository for the current license file if one is included in this project.
+
+## Repository overview
+
+This repository includes:
+
+- web-based UI for caption creation and styling
+- editor logic for word-level subtitles
+- export routines for SRT and ASS
+- local transcription companion support
+- Premiere bridge integration points
+- configuration and workflow support for cloud transcription
