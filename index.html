@@ -30,7 +30,16 @@
     <input id="gladiaKey" type="password" placeholder="Enter your Gladia API key" autocomplete="off">
   </div>
 </div>
-<div class="toolbar"><button class="primary" id="transcribeMedia">Transcribe locally</button><button class="secondary" id="transcribeGladia">Transcribe with Gladia</button><input id="mediaFile" type="file" accept="audio/*,video/*" hidden></div>
+<div class="toolbar">
+  <button class="primary" id="transcribeMedia">Transcribe locally</button>
+  <button class="secondary" id="transcribeGladia">Transcribe with Gladia</button>
+  <button class="secondary" id="importSrt">Import SRT</button>
+  <button class="secondary" id="importTranscript">Paste transcript</button>
+  <button class="secondary" id="addWord">Add word</button>
+  <input id="mediaFile" type="file" accept="audio/*,video/*" hidden>
+  <input id="srtFile" type="file" accept=".srt,text/plain" hidden>
+</div>
+<div id="transcriptionStatus" class="notice status-line">Ready to transcribe.</div>
 <div class="notice"><strong>About timing</strong><span>SRT imports preserve cue timing; splitting a transcript estimates timing evenly. Accurate speech synchronization needs a transcription engine with word timestamps.</span></div>
 <div class="word-editor"><div class="editor-toolbar"><span>WORD EDITOR</span><div><label>Words per block <select id="wordsPerBlock"><option>1</option><option selected>3</option><option>4</option></select></label><label>Case <select id="caseMode"><option value="normal">Normal</option><option value="upper">Uppercase</option><option value="lower">Lowercase</option></select></label></div></div><div class="timeline-card"><div class="timeline-head"><strong>WORD TIMELINE</strong><span>Adjust word timing above to sync with the source media.</span></div><div id="timelineRuler" class="timeline-ruler"></div><div id="timeline" class="timeline"></div></div><div class="word-count" id="wordCount">0 WORDS</div><div id="wordRows" class="word-list"></div></div>
 <div class="footer-actions"><button class="secondary" data-back="style">← Back to style</button><button class="primary" data-next="layout">Continue to generation <span>→</span></button></div>

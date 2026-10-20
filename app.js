@@ -42,19 +42,15 @@
     {id:"gold",name:"Gold Standard",desc:"Premium gold emphasis",accent:"#fbbf24",treatment:"outline"}
   ];
 
-  function toast(message) { var el = $("toast"); el.textContent = message; el.classList.add("show"); window.setTimeout(function(){el.classList.remove("show");}, 2600); }
+  function toast(message) {
+    var el = $("toast"); if (!el) return; el.textContent = message; el.classList.add("show"); window.setTimeout(function(){ el.classList.remove("show"); }, 2600);
+  }
   function esc(value) { return String(value).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
   function clamp(n,min,max){return Math.max(min,Math.min(max,n));}
   function setProviderFromSelection(provider){
     selectedProvider = provider || "local";
     try { localStorage.setItem("layerpop-provider", selectedProvider); } catch (err) { console.warn("Storage unavailable", err); }
     updateProviderUI();
-  }
-  function maskKey(value){
-    var key = (value || "").trim();
-    if (!key) return "";
-    if (key.length <= 8) return key.slice(0, 2) + "***";
-    return key.slice(0, 3) + "••••••" + key.slice(-3);
   }
   function validateGladiaKey(value){
     var key = (value || "").trim();
@@ -74,29 +70,28 @@
     }
     var actionLabel = $("transcribeActionLabel");
     if (actionLabel) actionLabel.textContent = selectedProvider === "gladia" ? "Transcribe with Gladia" : "Transcribe locally";
-    if (selectedProvider === "gladia") {
-      var status = $("transcriptionStatus");
-      if (status && !status.textContent) status.textContent = "Gladia cloud mode selected.";
-    }
   }
   function renderPresets() {
-    $("presetGrid").innerHTML = presets.map(function(p){
+    var grid = $("presetGrid"); if (!grid) return;
+    grid.innerHTML = presets.map(function(p){
       var sample = p.id === "creatorbox" ? "background:"+p.accent+";color:#111;padding:4px 6px;border-radius:3px;" : "color:#fff;text-shadow:2px 2px #000,-2px 2px #000,0 0 8px "+p.accent+";";
       return '<button class="preset '+(selectedPreset===p.id?'selected':'')+'" data-preset="'+p.id+'"><div class="preset-sample" style="'+sample+'">WORD <span style="color:'+p.accent+'">POP</span></div><div class="preset-meta"><strong>'+esc(p.name)+'</strong><span>'+esc(p.desc)+'</span></div></button>';
     }).join("");
     var p = presets.find(function(x){return x.id===selectedPreset;}) || presets[0];
-    $("accentColor").value = p.accent;
+    var accentColor = $("accentColor"); if (accentColor) accentColor.value = p.accent;
     updatePreview();
   }
   function updatePreview(){
-    var p = presets.find(function(x){return x.id===selectedPreset;}) || presets[0], accent = $("accentColor").value, textColor = $("textColor").value;
+    var accentNode = $("accentColor"); var textNode = $("textColor"); var fontNode = $("fontSize"); var preview = $("previewText");
+    if (!accentNode || !textNode || !fontNode || !preview) return;
+    var p = presets.find(function(x){return x.id===selectedPreset;}) || presets[0], accent = accentNode.value, textColor = textNode.value;
     var sample = words.length ? words[0].text : "THIS IS THE MOMENT", parts = sample.split(/\s+/), split = Math.max(1,Math.floor(parts.length*.6));
     var first = parts.slice(0,split).join(" "), second = parts.slice(split).join(" ");
-    var el = $("previewText"); el.innerHTML = esc(first)+(second?' <b>'+esc(second)+'</b>':'');
-    el.style.color = textColor; el.style.fontSize = $("fontSize").value + "px"; el.style.textShadow = p.treatment==="glow" ? "0 0 8px "+accent+",0 3px 4px #000" : "2px 2px #000,-2px 2px #000,0 3px 4px #000";
-    var b = el.querySelector("b"); if (b) b.style.color = accent;
-    if (p.treatment === "box") { el.style.background = accent; el.style.color = "#111"; el.style.padding = "8px 12px"; if (b) b.style.color = "#111"; } else { el.style.background = "transparent"; el.style.padding = "0"; }
-    $("fontSizeOut").textContent = $("fontSize").value + " px";
+    preview.innerHTML = esc(first)+(second?' <b>'+esc(second)+'</b>':'');
+    preview.style.color = textColor; preview.style.fontSize = fontNode.value + "px"; preview.style.textShadow = p.treatment==="glow" ? "0 0 8px "+accent+",0 3px 4px #000" : "2px 2px #000,-2px 2px #000,0 3px 4px #000";
+    var b = preview.querySelector("b"); if (b) b.style.color = accent;
+    if (p.treatment === "box") { preview.style.background = accent; preview.style.color = "#111"; preview.style.padding = "8px 12px"; if (b) b.style.color = "#111"; } else { preview.style.background = "transparent"; preview.style.padding = "0"; }
+    var fontOut = $("fontSizeOut"); if (fontOut) fontOut.textContent = fontNode.value + " px";
   }
   function formatTime(seconds, comma) {
     var ms = Math.max(0, Math.round((Number(seconds) || 0) * 1000)), h = Math.floor(ms / 3600000); ms %= 3600000; var m = Math.floor(ms / 60000); ms %= 60000; var s = Math.floor(ms / 1000); ms %= 1000;
@@ -108,21 +103,30 @@
     return +m[1] * 3600 + +m[2] * 60 + +m[3] + +(m[4].padEnd(3, "0")) / 1000;
   }
   function normalize(){
-    words = words.map(function(w, i){
+    words = words.map(function(w){
       var start = Math.max(0, Number(w.start) || 0), end = Number(w.end);
       if (!Number.isFinite(end) || end <= start) end = start + 0.25;
       return { text: String(w.text || "").trim() || "word", start: start, end: end };
     }).filter(function(w){ return w.text; });
   }
   function renderWords(){
-    normalize(); $("wordCount").textContent = words.length + " WORDS";
-    if (!words.length) { $("wordRows").innerHTML = '<div class="empty">Import an SRT or paste a transcript to start.</div>'; $("timeline").innerHTML = '<div class="empty">Your timed words will appear here.</div>'; $("timelineRuler").innerHTML = '<span>00.0s</span>' ; updatePreview(); return; }
-    $("wordRows").innerHTML = words.map(function(w, i){
+    normalize();
+    var wordCount = $("wordCount"); if (wordCount) wordCount.textContent = words.length + " WORDS";
+    var wordRows = $("wordRows"); var timeline = $("timeline"); var ruler = $("timelineRuler");
+    if (!wordRows || !timeline || !ruler) return;
+    if (!words.length) {
+      wordRows.innerHTML = '<div class="empty">Import an SRT or paste a transcript to start.</div>';
+      timeline.innerHTML = '<div class="empty">Your timed words will appear here.</div>';
+      ruler.innerHTML = '<span>00.0s</span>';
+      updatePreview();
+      return;
+    }
+    wordRows.innerHTML = words.map(function(w, i){
       return '<div class="word-row"><span class="word-index">'+String(i+1).padStart(2,"0")+'</span><input class="word-text" data-word-text="'+i+'" aria-label="Word '+(i+1)+'" value="'+esc(w.text)+'"><input class="time-field" data-word-start="'+i+'" value="'+w.start.toFixed(3)+'"><input class="time-field" data-word-end="'+i+'" value="'+w.end.toFixed(3)+'"></div>';
     }).join("");
     var maxEnd = Math.max(5, words.reduce(function(m, w){ return Math.max(m, w.end); }, 0));
-    $("timelineRuler").innerHTML = [0, 0.2, 0.4, 0.6, 0.8, 1].map(function(f){ return '<span>' + (maxEnd * f).toFixed(1) + 's</span>'; }).join("");
-    $("timeline").innerHTML = words.map(function(w, i){
+    ruler.innerHTML = [0, 0.2, 0.4, 0.6, 0.8, 1].map(function(f){ return '<span>' + (maxEnd * f).toFixed(1) + 's</span>'; }).join("");
+    timeline.innerHTML = words.map(function(w){
       var width = clamp(((w.end - w.start) / maxEnd) * 100, 1.3, 100);
       return '<div class="timeline-word" title="'+esc(w.text) + ': ' + w.start.toFixed(2) + '–' + w.end.toFixed(2) + 's" style="width:'+width+'%;left:'+((w.start/maxEnd)*100)+'%;"><span>'+esc(w.text)+'</span></div>';
     }).join("");
@@ -167,7 +171,8 @@
   }
   function exportAss(){
     normalize(); if (!words.length) { toast("Add or import words first."); return; }
-    var rgb = $("accentColor").value, rr = rgb.slice(1, 3), gg = rgb.slice(3, 5), bb = rgb.slice(5, 7), color = "&H00" + bb + gg + rr;
+    var accentColor = $("accentColor"); if (!accentColor) return;
+    var rgb = accentColor.value, rr = rgb.slice(1, 3), gg = rgb.slice(3, 5), bb = rgb.slice(5, 7), color = "&H00" + bb + gg + rr;
     var pos = $("captionPosition") ? $("captionPosition").value : "bottom", align = pos === "top" ? 8 : (pos === "center" ? 5 : 2), marginV = pos === "top" ? 120 : (pos === "center" ? 0 : 190);
     var animation = $("animationStyle") ? $("animationStyle").value : "pop";
     var header = "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,56," + color + ",&H80000000,&H80000000,&H80000000,0,0,0,0,100,100,0,1,2,0,2," + align + "," + marginV + ",0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
@@ -183,22 +188,25 @@
   function transcribeLocal(file){
     if (!file) { toast("Choose a video or audio file first."); return; }
     var status = $("transcriptionStatus"); var btn = $("transcribeMedia");
-    status.textContent = "Connecting to local transcription engine…"; btn.disabled = true;
+    if (status) status.textContent = "Connecting to local transcription engine…"; if (btn) btn.disabled = true;
     var form = new FormData(); form.append("file", file, file.name);
     fetch("http://127.0.0.1:8765/transcribe", { method: "POST", body: form })
       .then(function(r){ if (!r.ok) return r.text().then(function(t){ throw new Error(t || ("HTTP " + r.status)); }); return r.json(); })
       .then(function(data){
         if (!data.words || !data.words.length) throw new Error("No speech words were detected.");
         words = data.words.map(function(w){ return { text: String(w.text || w.word || "").trim(), start: Number(w.start), end: Number(w.end) }; });
-        renderWords(); showTab("text"); status.textContent = "Transcribed " + words.length + " words locally.";
+        renderWords(); if (status) status.textContent = "Transcribed " + words.length + " words locally.";
         toast("Local transcription complete: " + words.length + " words.");
       }).catch(function(err){
-        status.textContent = "Local engine unavailable: " + err.message;
+        if (status) status.textContent = "Local engine unavailable: " + err.message;
         toast("Start the LayerPop local transcription server; see LOCAL-TRANSCRIPTION.md.");
         console.error("LayerPop local transcription:", err);
-      }).finally(function(){ btn.disabled = false; });
+      }).finally(function(){ if (btn) btn.disabled = false; });
   }
-  function showTab(name){ document.querySelectorAll(".step").forEach(function(b){ b.classList.toggle("active", b.dataset.tab === name); }); document.querySelectorAll(".panel").forEach(function(p){ p.classList.toggle("active", p.id === "panel-" + name); }); }
+  function showTab(name){
+    document.querySelectorAll(".step").forEach(function(b){ b.classList.toggle("active", b.dataset.tab === name); });
+    document.querySelectorAll(".panel").forEach(function(p){ p.classList.toggle("active", p.id === "panel-" + name); });
+  }
   function checkBridge(){ var status = $("bridgeStatus"); function set(t){ if (status) status.textContent = t; } if (!window.__adobe_cep__) { set("CEP host bridge unavailable"); return; } if (typeof CSInterface === "undefined") { set("CEP host bridge unavailable"); return; } set("Premiere bridge connected."); }
   function transcribeGladia(file){
     if (!file) { toast("Choose an audio or video file first."); return; }
@@ -208,47 +216,45 @@
       toast(keyError); if (keyEl) keyEl.focus(); return;
     }
     var status = $("transcriptionStatus"), btn = $("transcribeGladia");
-    status.textContent = "Uploading selected media to Gladia…"; btn.disabled = true;
+    if (status) status.textContent = "Uploading selected media to Gladia…"; if (btn) btn.disabled = true;
     var form = new FormData(); form.append("file", file, file.name); form.append("api_key", key);
     fetch("http://127.0.0.1:8765/transcribe-gladia", { method: "POST", body: form })
       .then(function(r){ return r.json().then(function(data){ if (!r.ok) throw new Error(data.detail || data.error || ("HTTP " + r.status)); return data; }); })
       .then(function(data){
         if (!data.words || !data.words.length) throw new Error("Gladia returned no word timestamps. Check the selected media and API response.");
         words = data.words.map(function(w){ return { text: String(w.text || w.word || "").trim(), start: Number(w.start), end: Number(w.end) }; });
-        renderWords(); showTab("text"); status.textContent = "Gladia transcription complete: " + words.length + " words."; toast("Gladia transcription complete: " + words.length + " word cues.");
+        renderWords(); if (status) status.textContent = "Gladia transcription complete: " + words.length + " words."; toast("Gladia transcription complete: " + words.length + " word cues.");
       })
-      .catch(function(err){ status.textContent = "Gladia transcription failed: " + err.message; toast("Gladia error: " + err.message); console.error("LayerPop Gladia:", err); })
-      .finally(function(){ btn.disabled = false; });
+      .catch(function(err){ if (status) status.textContent = "Gladia transcription failed: " + err.message; toast("Gladia error: " + err.message); console.error("LayerPop Gladia:", err); })
+      .finally(function(){ if (btn) btn.disabled = false; });
   }
-  function chooseMogrt(){ if (!window.cep || !window.cep.fs || typeof window.cep.fs.showOpenDialogEx !== "function") { toast("CEP file picker unavailable."); return; } try { var r = window.cep.fs.showOpenDialogEx(false, false, "Select MOGRT", null, ["*.mogrt"], null); if (r && r.data && r.data[0]) { chosenMogrt = r.data[0]; $("mogrtStatus").textContent = "Selected: " + chosenMogrt; toast("MOGRT selected."); } } catch (err) { toast("Could not choose MOGRT: " + err.message); } }
+  function chooseMogrt(){ if (!window.cep || !window.cep.fs || typeof window.cep.fs.showOpenDialogEx !== "function") { toast("CEP file picker unavailable."); return; } try { var r = window.cep.fs.showOpenDialogEx(false, false, "Select MOGRT", null, ["*.mogrt"], null); if (r && r.data && r.data[0]) { chosenMogrt = r.data[0]; var mogrtStatus = $("mogrtStatus"); if (mogrtStatus) mogrtStatus.textContent = "Selected: " + chosenMogrt; toast("MOGRT selected."); } } catch (err) { toast("Could not choose MOGRT: " + err.message); } }
   function insertMogrt(){ if (!chosenMogrt) { toast("Choose a MOGRT first."); return; } if (!window.__adobe_cep__ || typeof CSInterface === "undefined") { toast("Premiere CEP bridge is unavailable."); return; } try { if (window.__adobe_cep__ && window.__adobe_cep__.evalScript) { window.__adobe_cep__.evalScript('LP_insertMogrt("' + chosenMogrt.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '")', function(result){ if (result && result.indexOf("ERROR") === 0) { toast(result); } else { toast("MOGRT insertion request sent to Premiere."); } }); } else { toast("CEP bridge unavailable for MOGRT insertion."); } } catch (err) { toast("MOGRT insertion failed: " + err.message); } }
-  function startGeneration(){ normalize(); if (!words.length) { toast("Import an SRT or paste a transcript first."); showTab("text"); return; } $("generationModal").classList.remove("hidden"); $("generationBar").style.width = "0%"; generationValue = 0; generationTimer = setInterval(function(){ generationValue = Math.min(100, generationValue + 10); $("generationBar").style.width = generationValue + "%"; $("generationStatus").textContent = generationValue < 100 ? "Generating caption layers…" : "Ready for Premiere export."; if (generationValue >= 100) { clearInterval(generationTimer); generationTimer = null; } }, 180); }
-  function cancelGeneration(){ if (generationTimer) { clearInterval(generationTimer); generationTimer = null; } $("generationModal").classList.add("hidden"); toast("Generation cancelled."); }
+  function startGeneration(){ normalize(); if (!words.length) { toast("Import an SRT or paste a transcript first."); showTab("text"); return; } var modal = $("generationModal"); if (modal) modal.classList.remove("hidden"); var bar = $("generationBar"); if (bar) bar.style.width = "0%"; generationValue = 0; generationTimer = setInterval(function(){ generationValue = Math.min(100, generationValue + 10); if (bar) bar.style.width = generationValue + "%"; var label = $("generationStatus"); if (label) label.textContent = generationValue < 100 ? "Generating caption layers…" : "Ready for Premiere export."; if (generationValue >= 100) { clearInterval(generationTimer); generationTimer = null; } }, 180); }
+  function cancelGeneration(){ if (generationTimer) { clearInterval(generationTimer); generationTimer = null; } var modal = $("generationModal"); if (modal) modal.classList.add("hidden"); toast("Generation cancelled."); }
   function initEvents(){
-    if ($("transcribeMedia")) $("transcribeMedia").addEventListener("click", function(){ $("mediaFile").dataset.engine = selectedProvider; $("mediaFile").click(); });
-    if ($("transcribeGladia")) $("transcribeGladia").addEventListener("click", function(){ setProviderFromSelection("gladia"); $("mediaFile").dataset.engine = "gladia"; $("mediaFile").click(); });
-    if ($("providerSelect")) $("providerSelect").addEventListener("change", function(){ setProviderFromSelection(this.value); });
-    if ($("mediaFile")) $("mediaFile").addEventListener("change", function(){ var file = this.files && this.files[0]; if (!file) return; if (this.dataset.engine === "gladia") { transcribeGladia(file); } else { transcribeLocal(file); } this.value = ""; });
+    var transcribeLocalBtn = $("transcribeMedia"); if (transcribeLocalBtn) transcribeLocalBtn.addEventListener("click", function(){ var fileInput = $("mediaFile"); if (fileInput) { fileInput.dataset.engine = selectedProvider; fileInput.click(); } });
+    var transcribeGladiaBtn = $("transcribeGladia"); if (transcribeGladiaBtn) transcribeGladiaBtn.addEventListener("click", function(){ setProviderFromSelection("gladia"); var fileInput = $("mediaFile"); if (fileInput) { fileInput.dataset.engine = "gladia"; fileInput.click(); } });
+    var providerSelect = $("providerSelect"); if (providerSelect) providerSelect.addEventListener("change", function(){ setProviderFromSelection(this.value); });
+    var mediaFile = $("mediaFile"); if (mediaFile) mediaFile.addEventListener("change", function(){ var file = this.files && this.files[0]; if (!file) return; if (this.dataset.engine === "gladia") { transcribeGladia(file); } else { transcribeLocal(file); } this.value = ""; });
+    var srtFile = $("srtFile"); if (srtFile) srtFile.addEventListener("change", function(){ var file = this.files && this.files[0]; if (!file) return; var reader = new FileReader(); reader.onload = function(){ var parsed = parseSrt(reader.result || ""); if (!parsed.length) { toast("No valid SRT cues were found."); return; } words = parsed; renderWords(); toast("Imported " + words.length + " word cues from SRT."); }; reader.readAsText(file); this.value = ""; });
+    var importSrtBtn = $("importSrt"); if (importSrtBtn) importSrtBtn.addEventListener("click", function(){ if (srtFile) srtFile.click(); });
+    var transcriptModal = $("transcriptModal"); var transcriptInput = $("transcriptInput"); var closeTranscript = $("closeTranscript"); var closeTranscriptBtn = $("closeTranscriptBtn"); var demoText = $("demoText"); var importTranscript = $("importTranscript"); if (importTranscript && transcriptModal) importTranscript.addEventListener("click", function(){ transcriptModal.classList.remove("hidden"); }); if (closeTranscript) closeTranscript.addEventListener("click", function(){ if (transcriptModal) transcriptModal.classList.add("hidden"); }); if (closeTranscriptBtn && transcriptModal) closeTranscriptBtn.addEventListener("click", function(){ transcriptModal.classList.add("hidden"); }); if (demoText && transcriptInput) demoText.addEventListener("click", function(){ var text = transcriptInput.value; splitTranscript(text, 22); if (transcriptModal) transcriptModal.classList.add("hidden"); });
+    var addWordBtn = $("addWord"); if (addWordBtn) addWordBtn.addEventListener("click", function(){ var end = words.length ? words[words.length - 1].end : 0; words.push({ text: "word", start: end, end: end + 0.3 }); renderWords(); });
     document.addEventListener("click", function(e){ var t = e.target.closest("[data-tab]"); if (t) { showTab(t.dataset.tab); return; } var n = e.target.closest("[data-next]"); if (n) { showTab(n.dataset.next); return; } var b = e.target.closest("[data-back]"); if (b) { showTab(b.dataset.back); return; } var preset = e.target.closest("[data-preset]"); if (preset) { selectedPreset = preset.dataset.preset; renderPresets(); toast("Preset: " + selectedPreset); } });
-    $("accentColor").addEventListener("input", updatePreview); $("textColor").addEventListener("input", updatePreview); $("fontSize").addEventListener("input", updatePreview);
-    $("importSrt").addEventListener("click", function(){ $("srtFile").click(); }); $("srtFile").addEventListener("change", function(){ var file = this.files && this.files[0]; if (!file) return; var reader = new FileReader(); reader.onload = function(){ var parsed = parseSrt(reader.result || ""); if (!parsed.length) { toast("No valid SRT cues were found."); return; } words = parsed; renderWords(); toast("Imported " + words.length + " word cues from SRT."); }; reader.readAsText(file); this.value = ""; });
-    $("importTranscript").addEventListener("click", function(){ $("transcriptModal").classList.remove("hidden"); }); $("closeTranscript").addEventListener("click", function(){ $("transcriptModal").classList.add("hidden"); });
-    $("addWord").addEventListener("click", function(){ var end = words.length ? words[words.length - 1].end : 0; words.push({ text: "word", start: end, end: end + 0.3 }); renderWords(); });
-    $("demoText").addEventListener("click", function(){ var text = $("transcriptInput").value; splitTranscript(text, 22); $("transcriptModal").classList.add("hidden"); });
-    $("wordRows").addEventListener("input", function(e){
+    var accentColor = $("accentColor"); if (accentColor) accentColor.addEventListener("input", updatePreview); var textColor = $("textColor"); if (textColor) textColor.addEventListener("input", updatePreview); var fontSize = $("fontSize"); if (fontSize) fontSize.addEventListener("input", updatePreview);
+    var wordRows = $("wordRows"); if (wordRows) wordRows.addEventListener("input", function(e){
       var el = e.target;
       if (typeof el.dataset.wordText !== "undefined") { var idx = +el.dataset.wordText; words[idx].text = el.value; updatePreview(); }
       if (typeof el.dataset.wordStart !== "undefined") { var idxStart = +el.dataset.wordStart; words[idxStart].start = Number(el.value) || 0; }
       if (typeof el.dataset.wordEnd !== "undefined") { var idxEnd = +el.dataset.wordEnd; words[idxEnd].end = Number(el.value) || 0; }
       renderWords();
     });
-    $("wordsPerBlock").addEventListener("change", function(){ toast("Block size set to " + this.value + " word(s). Export remains one cue per word."); });
-    $("caseMode").addEventListener("change", function(){ updatePreview(); });
-    $("exportSrt").addEventListener("click", exportSrt); $("exportAss").addEventListener("click", exportAss); $("chooseMogrt").addEventListener("click", chooseMogrt); $("generateBtn").addEventListener("click", startGeneration); $("closeGeneration").addEventListener("click", cancelGeneration); $("aboutBtn").addEventListener("click", function(){ $("aboutModal").classList.remove("hidden"); }); $("closeAbout").addEventListener("click", function(){ $("aboutModal").classList.add("hidden"); });
+    var wordsPerBlock = $("wordsPerBlock"); if (wordsPerBlock) wordsPerBlock.addEventListener("change", function(){ toast("Block size set to " + this.value + " word(s). Export remains one cue per word."); });
+    var caseMode = $("caseMode"); if (caseMode) caseMode.addEventListener("change", function(){ updatePreview(); });
+    var exportSrtBtn = $("exportSrt"); if (exportSrtBtn) exportSrtBtn.addEventListener("click", exportSrt); var exportAssBtn = $("exportAss"); if (exportAssBtn) exportAssBtn.addEventListener("click", exportAss); var chooseMogrtBtn = $("chooseMogrt"); if (chooseMogrtBtn) chooseMogrtBtn.addEventListener("click", chooseMogrt); var generateBtn = $("generateBtn"); if (generateBtn) generateBtn.addEventListener("click", startGeneration); var closeGeneration = $("closeGeneration"); if (closeGeneration) closeGeneration.addEventListener("click", cancelGeneration); var aboutBtn = $("aboutBtn"); if (aboutBtn) aboutBtn.addEventListener("click", function(){ var modal = $("aboutModal"); if (modal) modal.classList.remove("hidden"); }); var closeAbout = $("closeAbout"); if (closeAbout) closeAbout.addEventListener("click", function(){ var modal = $("aboutModal"); if (modal) modal.classList.add("hidden"); });
     document.addEventListener("keydown", function(e){ if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); showTab("style"); }});
   }
-  function renderTimelineOnly(){ var maxEnd = Math.max(5, words.reduce(function(m, w){ return Math.max(m, w.end); }, 0)); $("timeline").innerHTML = words.map(function(w, i){ var width = clamp(((w.end - w.start) / maxEnd) * 100, 1.3, 100); return '<div class="timeline-word" title="'+esc(w.text)+': '+w.start.toFixed(2)+'–'+w.end.toFixed(2)+'s" style="width:'+width+'%;left:'+((w.start/maxEnd)*100)+'%;"><span>'+esc(w.text)+'</span></div>'; }).join(""); }
   function boot(){ renderPresets(); initEvents(); updateProviderUI(); checkBridge(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();
-
