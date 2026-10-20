@@ -59,8 +59,8 @@
   }
 
   function esc(value) {
-    return String(value).replace(/[&<>"']/g, function (c) {
-      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    return String(value).replace(/[&<>\"']/g, function (c) {
+      return {"&":"&amp;","<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;"}[c];
     });
   }
 
@@ -245,11 +245,11 @@
 
     words = tokens.map(function (token, i) {
       return {
-        text: token.replace(/^\s+|\s+$/g, ""),
+        text: token.replace(/^[^a-zA-Z0-9']+|[^a-zA-Z0-9']+$/g, ""),
         start: i * unit,
         end: (i + 1) * unit
       };
-    });
+    }).filter(function (w) { return w.text; });
 
     renderWords();
     return true;
@@ -334,7 +334,7 @@
     var marginV = pos === "top" ? 120 : (pos === "center" ? 0 : 190);
     var animation = $("animationStyle") ? $("animationStyle").value : "pop";
 
-    var header = "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,52," + color + ",&H80000000,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,0,0,0," + align + ",0,0,0\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
+    var header = "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,72,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0," + align + ",30,30," + marginV + ",1\n\n[Events]\n";
 
     var body = words.map(function (w) {
       var text = applyCase(w.text);
@@ -423,6 +423,23 @@
         }
       });
     });
+  }
+
+  function seedDemoWords() {
+    var sample = "of advice you've ever given someone, you can make it better";
+    words = sample.split(/\s+/).map(function (token, index) {
+      var cleaned = token.replace(/^[^a-zA-Z0-9']+|[^a-zA-Z0-9']+$/g, "");
+      var start = index * 0.35;
+      var end = start + 0.35;
+      return {
+        text: cleaned,
+        start: start,
+        end: end
+      };
+    }).filter(function (word) { return word.text; });
+
+    renderWords();
+    showTab("text");
   }
 
   function transcribeGladia(file) {
@@ -803,6 +820,8 @@
     renderPresets();
     initEvents();
     checkBridge();
+    seedDemoWords();
+    showTab("text");
   }
 
   if (document.readyState === "loading") {
