@@ -53,6 +53,18 @@
     }
     return null;
   }
+  function getDefaultMogrtRoot(){
+    var candidates = [
+      "C:/",
+      "D:/",
+      "E:/",
+      "C:/Users/",
+      "C:/Program Files/Adobe/Adobe Premiere Pro/",
+      "C:/Users/Default/Documents/Adobe/Premiere Pro/",
+      "C:/Users/Shared/Documents/Adobe/Premiere Pro/"
+    ];
+    return candidates[0];
+  }
   function setProviderFromSelection(provider){
     selectedProvider = provider || "local";
     try { localStorage.setItem("layerpop-provider", selectedProvider); } catch (err) { console.warn("Storage unavailable", err); }
@@ -246,7 +258,19 @@
       .catch(function(err){ if (status) status.textContent = "Gladia transcription failed: " + err.message; toast("Gladia error: " + err.message); console.error("LayerPop Gladia:", err); })
       .finally(function(){ if (btn) btn.disabled = false; });
   }
-  function chooseMogrt(){ if (!window.cep || !window.cep.fs || typeof window.cep.fs.showOpenDialogEx !== "function") { toast("CEP file picker unavailable."); return; } try { var r = window.cep.fs.showOpenDialogEx(false, false, "Select MOGRT", null, ["*.mogrt"], null); if (r && r.data && r.data[0]) { chosenMogrt = r.data[0]; var mogrtStatus = $("mogrtStatus"); if (mogrtStatus) mogrtStatus.textContent = "Selected: " + chosenMogrt; toast("MOGRT selected."); } } catch (err) { toast("Could not choose MOGRT: " + err.message); } }
+  function chooseMogrt(){
+    if (!window.cep || !window.cep.fs || typeof window.cep.fs.showOpenDialogEx !== "function") { toast("CEP file picker unavailable."); return; }
+    try {
+      var startDir = getDefaultMogrtRoot();
+      var r = window.cep.fs.showOpenDialogEx(false, false, "Select MOGRT", startDir, ["*.mogrt"], null);
+      if (r && r.data && r.data[0]) {
+        chosenMogrt = r.data[0];
+        var mogrtStatus = $("mogrtStatus");
+        if (mogrtStatus) mogrtStatus.textContent = "Selected: " + chosenMogrt;
+        toast("MOGRT selected.");
+      }
+    } catch (err) { toast("Could not choose MOGRT: " + err.message); }
+  }
   function insertMogrt(){
     if (!chosenMogrt) { toast("Choose a MOGRT first."); return; }
     var bridge = getHostBridge();
