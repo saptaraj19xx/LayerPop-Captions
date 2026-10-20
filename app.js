@@ -42,11 +42,17 @@
     {id:"gold",name:"Gold Standard",desc:"Premium gold emphasis",accent:"#fbbf24",treatment:"outline"}
   ];
 
-  function toast(message) {
-    var el = $("toast"); if (!el) return; el.textContent = message; el.classList.add("show"); window.setTimeout(function(){ el.classList.remove("show"); }, 2600);
-  }
+  function toast(message) { var el = $("toast"); if (!el) return; el.textContent = message; el.classList.add("show"); window.setTimeout(function(){ el.classList.remove("show"); }, 2600); }
   function esc(value) { return String(value).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
   function clamp(n,min,max){return Math.max(min,Math.min(max,n));}
+  function getHostBridge(){
+    if (window.__adobe_cep__ && typeof window.__adobe_cep__.evalScript === "function") return window.__adobe_cep__;
+    if (typeof CSInterface !== "undefined") {
+      window.__adobe_cep__ = new CSInterface();
+      return window.__adobe_cep__;
+    }
+    return null;
+  }
   function setProviderFromSelection(provider){
     selectedProvider = provider || "local";
     try { localStorage.setItem("layerpop-provider", selectedProvider); } catch (err) { console.warn("Storage unavailable", err); }
@@ -59,10 +65,8 @@
     return "";
   }
   function updateProviderUI(){
-    var providerSelect = $("providerSelect");
-    if (providerSelect) providerSelect.value = selectedProvider;
-    var keyRow = $("gladiaKeyRow");
-    var keyInput = $("gladiaKey");
+    var providerSelect = $("providerSelect"); if (providerSelect) providerSelect.value = selectedProvider;
+    var keyRow = $("gladiaKeyRow"); var keyInput = $("gladiaKey");
     if (keyRow) keyRow.style.display = selectedProvider === "gladia" ? "flex" : "none";
     if (keyInput) {
       keyInput.title = selectedProvider === "gladia" ? "Gladia API key for cloud transcription" : "Select Gladia Cloud to enable cloud transcription";
@@ -71,7 +75,7 @@
     var actionLabel = $("transcribeActionLabel");
     if (actionLabel) actionLabel.textContent = selectedProvider === "gladia" ? "Transcribe with Gladia" : "Transcribe locally";
   }
-  function renderPresets() {
+  function renderPresets(){
     var grid = $("presetGrid"); if (!grid) return;
     grid.innerHTML = presets.map(function(p){
       var sample = p.id === "creatorbox" ? "background:"+p.accent+";color:#111;padding:4px 6px;border-radius:3px;" : "color:#fff;text-shadow:2px 2px #000,-2px 2px #000,0 0 8px "+p.accent+";";
@@ -207,7 +211,21 @@
     document.querySelectorAll(".step").forEach(function(b){ b.classList.toggle("active", b.dataset.tab === name); });
     document.querySelectorAll(".panel").forEach(function(p){ p.classList.toggle("active", p.id === "panel-" + name); });
   }
-  function checkBridge(){ var status = $("bridgeStatus"); function set(t){ if (status) status.textContent = t; } if (!window.__adobe_cep__) { set("CEP host bridge unavailable"); return; } if (typeof CSInterface === "undefined") { set("CEP host bridge unavailable"); return; } set("Premiere bridge connected."); }
+  function checkBridge(){
+    var status = $("bridgeStatus");
+    var bridge = getHostBridge();
+    function set(t){ if (status) status.textContent = t; }
+    if (!bridge) { set("CEP host bridge unavailable"); return; }
+    bridge.evalScript("LP_ping()", function(result){
+      if (!result || result.indexOf("LAYERPOP_READY") === -1) { set("Premiere bridge unavailable"); return; }
+      set("Premiere bridge connected.");
+      bridge.evalScript("LP_getSequenceInfo()", function(seqInfo){
+        if (seqInfo && seqInfo !== "NO_ACTIVE_SEQUENCE" && seqInfo !== "NO_PROJECT") {
+          if (status) status.textContent = "Premiere bridge connected — " + seqInfo.split("|")[0];
+        }
+      });
+    });
+  }
   function transcribeGladia(file){
     if (!file) { toast("Choose an audio or video file first."); return; }
     var keyEl = $("gladiaKey"), key = keyEl ? keyEl.value.trim() : "";
@@ -229,7 +247,19 @@
       .finally(function(){ if (btn) btn.disabled = false; });
   }
   function chooseMogrt(){ if (!window.cep || !window.cep.fs || typeof window.cep.fs.showOpenDialogEx !== "function") { toast("CEP file picker unavailable."); return; } try { var r = window.cep.fs.showOpenDialogEx(false, false, "Select MOGRT", null, ["*.mogrt"], null); if (r && r.data && r.data[0]) { chosenMogrt = r.data[0]; var mogrtStatus = $("mogrtStatus"); if (mogrtStatus) mogrtStatus.textContent = "Selected: " + chosenMogrt; toast("MOGRT selected."); } } catch (err) { toast("Could not choose MOGRT: " + err.message); } }
-  function insertMogrt(){ if (!chosenMogrt) { toast("Choose a MOGRT first."); return; } if (!window.__adobe_cep__ || typeof CSInterface === "undefined") { toast("Premiere CEP bridge is unavailable."); return; } try { if (window.__adobe_cep__ && window.__adobe_cep__.evalScript) { window.__adobe_cep__.evalScript('LP_insertMogrt("' + chosenMogrt.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '")', function(result){ if (result && result.indexOf("ERROR") === 0) { toast(result); } else { toast("MOGRT insertion request sent to Premiere."); } }); } else { toast("CEP bridge unavailable for MOGRT insertion."); } } catch (err) { toast("MOGRT insertion failed: " + err.message); } }
+  function insertMogrt(){
+    if (!chosenMogrt) { toast("Choose a MOGRT first."); return; }
+    var bridge = getHostBridge();
+    if (!bridge) { toast("Premiere CEP bridge is unavailable."); return; }
+    var safePath = chosenMogrt.replace(/\\/g, "/").replace(/"/g, '\\"');
+    bridge.evalScript('LP_insertMogrt("' + safePath + '")', function(result){
+      if (!result || result.indexOf("OK:") === -1) {
+        toast((result && result.indexOf("ERROR") === 0) ? result : "MOGRT import request failed.");
+      } else {
+        toast("MOGRT import request sent to Premiere.");
+      }
+    });
+  }
   function startGeneration(){ normalize(); if (!words.length) { toast("Import an SRT or paste a transcript first."); showTab("text"); return; } var modal = $("generationModal"); if (modal) modal.classList.remove("hidden"); var bar = $("generationBar"); if (bar) bar.style.width = "0%"; generationValue = 0; generationTimer = setInterval(function(){ generationValue = Math.min(100, generationValue + 10); if (bar) bar.style.width = generationValue + "%"; var label = $("generationStatus"); if (label) label.textContent = generationValue < 100 ? "Generating caption layers…" : "Ready for Premiere export."; if (generationValue >= 100) { clearInterval(generationTimer); generationTimer = null; } }, 180); }
   function cancelGeneration(){ if (generationTimer) { clearInterval(generationTimer); generationTimer = null; } var modal = $("generationModal"); if (modal) modal.classList.add("hidden"); toast("Generation cancelled."); }
   function initEvents(){
@@ -255,6 +285,12 @@
     var exportSrtBtn = $("exportSrt"); if (exportSrtBtn) exportSrtBtn.addEventListener("click", exportSrt); var exportAssBtn = $("exportAss"); if (exportAssBtn) exportAssBtn.addEventListener("click", exportAss); var chooseMogrtBtn = $("chooseMogrt"); if (chooseMogrtBtn) chooseMogrtBtn.addEventListener("click", chooseMogrt); var generateBtn = $("generateBtn"); if (generateBtn) generateBtn.addEventListener("click", startGeneration); var closeGeneration = $("closeGeneration"); if (closeGeneration) closeGeneration.addEventListener("click", cancelGeneration); var aboutBtn = $("aboutBtn"); if (aboutBtn) aboutBtn.addEventListener("click", function(){ var modal = $("aboutModal"); if (modal) modal.classList.remove("hidden"); }); var closeAbout = $("closeAbout"); if (closeAbout) closeAbout.addEventListener("click", function(){ var modal = $("aboutModal"); if (modal) modal.classList.add("hidden"); });
     document.addEventListener("keydown", function(e){ if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); showTab("style"); }});
   }
-  function boot(){ renderPresets(); initEvents(); updateProviderUI(); checkBridge(); }
+  function boot(){
+    if (typeof CSInterface !== "undefined") { window.__adobe_cep__ = new CSInterface(); }
+    renderPresets();
+    initEvents();
+    updateProviderUI();
+    checkBridge();
+  }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();
