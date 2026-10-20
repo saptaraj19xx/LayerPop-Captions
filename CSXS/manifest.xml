@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.saptaraj.layerpop.captions" ExtensionBundleVersion="5.1.0" ExtensionBundleName="LayerPop Viral Captions">
+  <ExtensionList><Extension Id="com.saptaraj.layerpop.captions.panel" Version="5.1.0"/></ExtensionList>
+  <ExecutionEnvironment><HostList><Host Name="PPRO" Version="[25.0,99.9]"/></HostList><LocaleList><Locale Code="All"/></LocaleList><RequiredRuntimeList><RequiredRuntime Name="CSXS" Version="11.0"/></RequiredRuntimeList></ExecutionEnvironment>
+  <DispatchInfoList><Extension Id="com.saptaraj.layerpop.captions.panel"><DispatchInfo><Resources><MainPath>./index.html</MainPath><ScriptPath>./jsx/main.jsx</ScriptPath><CEFCommandLine><Parameter>--allow-file-access-from-files</Parameter></CEFCommandLine></Resources><Lifecycle><AutoVisible>true</AutoVisible></Lifecycle><UI><Type>Panel</Type><Menu>LayerPop Viral Captions</Menu><Geometry><Size><Height>820</Height><Width>1080</Width></Size><MinSize><Height>500</Height><Width>340</Width></MinSize></Geometry></UI></DispatchInfo></Extension></DispatchInfoList>
+</ExtensionManifest>
