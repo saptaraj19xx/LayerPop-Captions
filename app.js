@@ -77,6 +77,20 @@
     return null;
   }
 
+  function isTranscribableMedia(file) {
+    if (!file) return false;
+    var name = (file.name || "").toLowerCase();
+    var mime = (file.type || "").toLowerCase();
+    var okExt = /\.(mp3|wav|flac|ogg|m4a|aac|mp4|mov|m4v|avi|mkv|webm|wmv|mpeg|mpg|mts|m2ts|ts)$/i.test(name);
+    var okMime = mime.indexOf("audio/") === 0 || mime.indexOf("video/") === 0;
+    return okExt || okMime;
+  }
+
+  function showToastError(message) {
+    toast(message);
+    console.error("[LayerPop]", message);
+  }
+
   function setProviderFromSelection(provider) {
     selectedProvider = provider || "local";
     try { localStorage.setItem("layerpop-provider", selectedProvider); } catch (err) { console.warn("Storage unavailable", err); }
@@ -354,6 +368,10 @@
       toast("Choose a video or audio file first.");
       return;
     }
+    if (!isTranscribableMedia(file)) {
+      toast("Please choose an audio or video file. SRT files are not valid input for local transcription.");
+      return;
+    }
 
     var status = $("transcriptionStatus");
     var btn = $("transcribeMedia");
@@ -445,6 +463,10 @@
   function transcribeGladia(file) {
     if (!file) {
       toast("Choose an audio or video file first.");
+      return;
+    }
+    if (!isTranscribableMedia(file)) {
+      toast("Please choose an audio or video file. SRT files are not valid input for Gladia transcription.");
       return;
     }
 
@@ -603,6 +625,13 @@
           fileInput.dataset.engine = "local";
           fileInput.click();
         }
+      });
+    }
+
+    var transcribeActiveSequenceBtn = $("transcribeActiveSequence");
+    if (transcribeActiveSequenceBtn) {
+      transcribeActiveSequenceBtn.addEventListener("click", function () {
+        showToastError("Premiere-side active-sequence export is not implemented in this build yet. Please choose an actual audio/video file for now.");
       });
     }
 
